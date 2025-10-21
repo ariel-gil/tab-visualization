@@ -16,10 +16,17 @@
     <div class="controls">
       <input type="text" id="searchInput" placeholder="Search tabs by title or URL...">
       <div class="button-group">
+        <label class="toggle-label">
+          <input type="checkbox" id="showClosedToggle" checked>
+          Show Closed Tabs
+        </label>
         <button id="refreshBtn">Refresh</button>
+        <button id="saveSessionBtn">Save Session</button>
+        <button id="loadSessionBtn">Load Session</button>
         <button id="exportBtn">Export JSON</button>
         <button id="clearBtn" class="danger">Clear History</button>
       </div>
+      <input type="file" id="sessionFileInput" accept=".json" style="display: none;">
     </div>
 
     <div class="stats">

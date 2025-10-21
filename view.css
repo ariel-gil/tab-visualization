@@ -66,6 +66,23 @@ h1 {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 5px 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  user-select: none;
+}
+
+.toggle-label input[type="checkbox"] {
+  cursor: pointer;
 }
 
 button {
@@ -157,11 +174,45 @@ button.danger:hover {
   border-left-color: #e67e22;
 }
 
+.tree-node.current-active {
+  border-left-color: #27ae60;
+  background: #e8f8f5;
+  box-shadow: 0 0 0 2px #27ae60;
+}
+
+.tree-node.collapsed .tree-children {
+  display: none;
+}
+
 .node-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 5px;
+}
+
+.node-favicon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.node-collapse-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: bold;
+  color: #7f8c8d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.node-collapse-icon:hover {
+  color: #3498db;
 }
 
 .node-title {
@@ -169,6 +220,13 @@ button.danger:hover {
   color: #2c3e50;
   font-size: 14px;
   flex: 1;
+}
+
+.child-count {
+  font-size: 11px;
+  color: #7f8c8d;
+  font-weight: normal;
+  margin-left: 4px;
 }
 
 .node-status {

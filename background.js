@@ -17,6 +17,7 @@ chrome.runtime.onInstalled.addListener(async () => {
       id: tab.id,
       title: tab.title || 'Loading...',
       url: tab.url || '',
+      favIconUrl: tab.favIconUrl || '',
       parentId: null, // Existing tabs don't have parent info
       timestamp: Date.now(),
       active: true
@@ -39,6 +40,7 @@ chrome.tabs.onCreated.addListener(async (tab) => {
     id: tab.id,
     title: tab.title || 'Loading...',
     url: tab.url || '',
+    favIconUrl: tab.favIconUrl || '',
     parentId: tab.openerTabId || null, // openerTabId is the parent tab
     timestamp: Date.now(),
     active: true
@@ -62,12 +64,14 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (tabs[tabId]) {
     if (changeInfo.title) tabs[tabId].title = changeInfo.title;
     if (changeInfo.url) tabs[tabId].url = changeInfo.url;
+    if (changeInfo.favIconUrl) tabs[tabId].favIconUrl = changeInfo.favIconUrl;
   } else {
     // Tab wasn't tracked yet, add it
     tabs[tabId] = {
       id: tabId,
       title: tab.title || 'Loading...',
       url: tab.url || '',
+      favIconUrl: tab.favIconUrl || '',
       parentId: null,
       timestamp: Date.now(),
       active: true
