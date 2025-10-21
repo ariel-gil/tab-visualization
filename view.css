@@ -138,13 +138,19 @@ button.danger:hover {
   transition: background-color 0.2s;
 }
 
-.tree-node:hover {
-  background: #e9ecef;
+.tree-node.active:hover {
+  background: #e3f2fd;
+  cursor: pointer;
 }
 
 .tree-node.inactive {
   border-left-color: #95a5a6;
   opacity: 0.6;
+}
+
+.tree-node.inactive:hover {
+  background: #f8f9fa;
+  cursor: default;
 }
 
 .tree-node.root {
@@ -181,13 +187,6 @@ button.danger:hover {
 .node-status.closed {
   background: #f8d7da;
   color: #721c24;
-}
-
-.node-url {
-  font-size: 12px;
-  color: #7f8c8d;
-  word-break: break-all;
-  margin-bottom: 5px;
 }
 
 .node-meta {
