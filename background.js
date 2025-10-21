@@ -53,7 +53,7 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 // Listen for tab updates (title, URL changes)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Only process when we have useful info
-  if (!changeInfo.title && !changeInfo.url) return;
+  if (!changeInfo.title && !changeInfo.url && !changeInfo.favIconUrl) return;
 
   console.log('Tab updated:', tabId, changeInfo);
 
@@ -63,7 +63,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Update existing tab or create if it doesn't exist
   if (tabs[tabId]) {
     if (changeInfo.title) tabs[tabId].title = changeInfo.title;
-    if (changeInfo.url) tabs[tabId].url = changeInfo.url;
+    if (changeInfo.url) {
+      tabs[tabId].url = changeInfo.url;
+      // Update timestamp when URL changes (tab reload/navigation)
+      tabs[tabId].timestamp = Date.now();
+    }
     if (changeInfo.favIconUrl) tabs[tabId].favIconUrl = changeInfo.favIconUrl;
   } else {
     // Tab wasn't tracked yet, add it

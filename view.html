@@ -14,12 +14,24 @@
     </header>
 
     <div class="controls">
+      <div class="view-mode-tabs">
+        <button id="treeViewBtn" class="view-tab active">Tree View</button>
+        <button id="sequentialViewBtn" class="view-tab">Sequential View</button>
+      </div>
+
       <input type="text" id="searchInput" placeholder="Search tabs by title or URL...">
+
       <div class="button-group">
         <label class="toggle-label">
           <input type="checkbox" id="showClosedToggle" checked>
           Show Closed Tabs
         </label>
+
+        <select id="sortOrderSelect" style="display: none;">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+        </select>
+
         <button id="refreshBtn">Refresh</button>
         <button id="saveSessionBtn">Save Session</button>
         <button id="loadSessionBtn">Load Session</button>

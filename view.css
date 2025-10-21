@@ -47,6 +47,41 @@ h1 {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+.view-mode-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.view-tab {
+  padding: 8px 16px;
+  border: 2px solid #e0e0e0;
+  background: white;
+  color: #555;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.view-tab:hover {
+  background: #f8f9fa;
+  border-color: #3498db;
+  transform: none;
+}
+
+.view-tab.active {
+  background: #3498db;
+  color: white;
+  border-color: #3498db;
+}
+
+.view-tab.active:hover {
+  background: #2980b9;
+  border-color: #2980b9;
+}
+
 #searchInput {
   width: 100%;
   padding: 8px 12px;
@@ -83,6 +118,21 @@ h1 {
 
 .toggle-label input[type="checkbox"] {
   cursor: pointer;
+}
+
+select {
+  padding: 8px 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  background: white;
+  transition: border-color 0.3s;
+}
+
+select:focus {
+  outline: none;
+  border-color: #3498db;
 }
 
 button {
@@ -258,6 +308,43 @@ button.danger:hover {
   margin-top: 6px;
   padding-left: 10px;
   border-left: 2px dotted #ddd;
+}
+
+/* Sequential view styles */
+.sequential-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sequential-node {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid #3498db;
+  background: #f8f9fa;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.sequential-node.inactive {
+  border-left-color: #95a5a6;
+  opacity: 0.6;
+}
+
+.sequential-node.active:hover {
+  background: #e3f2fd;
+  cursor: pointer;
+}
+
+.sequential-node.inactive:hover {
+  background: #f8f9fa;
+  cursor: default;
+}
+
+.sequential-node.current-active {
+  border-left-color: #27ae60;
+  background: #e8f8f5;
+  box-shadow: 0 0 0 2px #27ae60;
 }
 
 /* Responsive */
