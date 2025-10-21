@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Journey Visualizer</title>
+  <link rel="stylesheet" href="view.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Tab Journey Visualizer</h1>
+      <p class="subtitle">See how your tabs are connected</p>
+    </header>
+
+    <div class="controls">
+      <input type="text" id="searchInput" placeholder="Search tabs by title or URL...">
+      <div class="button-group">
+        <button id="refreshBtn">Refresh</button>
+        <button id="exportBtn">Export JSON</button>
+        <button id="clearBtn" class="danger">Clear History</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <span id="totalTabs">Total tabs: 0</span>
+      <span id="activeTabs">Active: 0</span>
+      <span id="closedTabs">Closed: 0</span>
+    </div>
+
+    <div id="treeContainer" class="tree-container">
+      <p class="empty-state">No tabs tracked yet. Open some tabs to see the journey!</p>
+    </div>
+  </div>
+
+  <script src="view.js"></script>
+</body>
+</html>

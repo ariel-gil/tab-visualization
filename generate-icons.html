@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Extension Icons</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+  </style>
+</head>
+<body>
+  <h1>Generate Extension Icons</h1>
+  <p>Click the buttons below to download the required icon files for the extension.</p>
+
+  <div>
+    <canvas id="icon16" width="16" height="16"></canvas>
+    <canvas id="icon48" width="48" height="48"></canvas>
+    <canvas id="icon128" width="128" height="128"></canvas>
+  </div>
+
+  <div>
+    <button onclick="downloadIcon(16)">Download icon16.png</button>
+    <button onclick="downloadIcon(48)">Download icon48.png</button>
+    <button onclick="downloadIcon(128)">Download icon128.png</button>
+  </div>
+
+  <script>
+    // Draw icons on canvases
+    function drawIcon(size) {
+      const canvas = document.getElementById(`icon${size}`);
+      const ctx = canvas.getContext('2d');
+
+      // Background
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(0, 0, size, size);
+
+      // Draw a simple tree/hierarchy icon
+      ctx.strokeStyle = 'white';
+      ctx.fillStyle = 'white';
+      ctx.lineWidth = Math.max(1, size / 16);
+
+      const padding = size * 0.2;
+      const centerX = size / 2;
+      const topY = padding;
+      const bottomY = size - padding;
+      const nodeSize = size * 0.15;
+
+      // Root node (top)
+      ctx.beginPath();
+      ctx.arc(centerX, topY + nodeSize, nodeSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Vertical line from root
+      ctx.beginPath();
+      ctx.moveTo(centerX, topY + nodeSize * 2);
+      ctx.lineTo(centerX, size / 2);
+      ctx.stroke();
+
+      // Horizontal line for branches
+      const branchY = size / 2;
+      const branchSpread = size * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(centerX - branchSpread, branchY);
+      ctx.lineTo(centerX + branchSpread, branchY);
+      ctx.stroke();
+
+      // Left child node
+      ctx.beginPath();
+      ctx.moveTo(centerX - branchSpread, branchY);
+      ctx.lineTo(centerX - branchSpread, bottomY - nodeSize);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(centerX - branchSpread, bottomY - nodeSize, nodeSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Right child node
+      ctx.beginPath();
+      ctx.moveTo(centerX + branchSpread, branchY);
+      ctx.lineTo(centerX + branchSpread, bottomY - nodeSize);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(centerX + branchSpread, bottomY - nodeSize, nodeSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw all icons
+    drawIcon(16);
+    drawIcon(48);
+    drawIcon(128);
+
+    // Download icon as PNG
+    function downloadIcon(size) {
+      const canvas = document.getElementById(`icon${size}`);
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `icon${size}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+  </script>
+</body>
+</html>
