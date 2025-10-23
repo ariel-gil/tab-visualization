@@ -19,6 +19,8 @@ let draggedElement = null; // Currently dragged element
 let dragOffset = { x: 0, y: 0 }; // Offset from mouse to element top-left
 let draggedType = null; // 'tab' or 'group'
 let draggedId = null; // ID of dragged element
+let originalPosition = null; // Original position before dragging (for collision revert)
+let dropTargetGroup = null; // Group that tab is being dragged over
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -968,6 +970,91 @@ function showTabContextMenu(tabId, x, y) {
   }, 0);
 }
 
+// Check if two rectangles overlap
+function checkCollision(rect1, rect2) {
+  return !(
+    rect1.x + rect1.width <= rect2.x ||
+    rect1.x >= rect2.x + rect2.width ||
+    rect1.y + rect1.height <= rect2.y ||
+    rect1.y >= rect2.y + rect2.height
+  );
+}
+
+// Check if a point/rectangle is inside a group
+function isInsideGroup(x, y, width, height, groupId) {
+  const group = canvasData.groups[groupId];
+  if (!group) return false;
+
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+
+  return (
+    centerX >= group.position.x &&
+    centerX <= group.position.x + group.position.width &&
+    centerY >= group.position.y &&
+    centerY <= group.position.y + group.position.height
+  );
+}
+
+// Check if a new position would cause a collision
+function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
+  const newRect = { x: newX, y: newY, width: newWidth, height: newHeight };
+
+  if (type === 'tab') {
+    const tabWidth = 230;
+    const tabHeight = 60;
+    newRect.width = tabWidth;
+    newRect.height = tabHeight;
+
+    // Get which group this tab belongs to (if any)
+    const ownGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(parseInt(id)));
+
+    // Check collision with other tabs (except those in same group)
+    for (const [otherId, pos] of Object.entries(canvasData.positions)) {
+      if (otherId === id) continue;
+
+      const otherGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(parseInt(otherId)));
+
+      // Skip collision check if both tabs are in the same group
+      if (ownGroup && otherGroup && ownGroup.id === otherGroup.id) continue;
+
+      const otherRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
+      if (checkCollision(newRect, otherRect)) return true;
+    }
+
+    // Check collision with groups (except the one we might be dropping into)
+    for (const [groupId, group] of Object.entries(canvasData.groups)) {
+      // If tab is being dropped into this group, allow the overlap
+      if (isInsideGroup(newX, newY, tabWidth, tabHeight, groupId)) {
+        continue;
+      }
+
+      const groupRect = {
+        x: group.position.x,
+        y: group.position.y,
+        width: group.position.width,
+        height: group.position.height
+      };
+      if (checkCollision(newRect, groupRect)) return true;
+    }
+  } else if (type === 'group') {
+    // Check collision with other groups
+    for (const [otherId, otherGroup] of Object.entries(canvasData.groups)) {
+      if (otherId === id) continue;
+
+      const otherRect = {
+        x: otherGroup.position.x,
+        y: otherGroup.position.y,
+        width: otherGroup.position.width,
+        height: otherGroup.position.height
+      };
+      if (checkCollision(newRect, otherRect)) return true;
+    }
+  }
+
+  return false;
+}
+
 // Set up drag and drop for canvas
 function setupCanvasDragAndDrop() {
   const workspace = document.getElementById('canvasWorkspace');
@@ -981,6 +1068,9 @@ function setupCanvasDragAndDrop() {
       draggedId = target.dataset.tabId;
       draggedElement = target;
 
+      // Save original position
+      originalPosition = { ...canvasData.positions[draggedId] };
+
       const rect = target.getBoundingClientRect();
       const workspaceRect = workspace.getBoundingClientRect();
       dragOffset.x = e.clientX - rect.left;
@@ -991,6 +1081,9 @@ function setupCanvasDragAndDrop() {
       draggedType = 'group';
       draggedId = target.dataset.groupId;
       draggedElement = target;
+
+      // Save original position
+      originalPosition = { ...canvasData.groups[draggedId].position };
 
       const rect = target.getBoundingClientRect();
       dragOffset.x = e.clientX - rect.left;
@@ -1003,12 +1096,56 @@ function setupCanvasDragAndDrop() {
   // Drag over
   workspace.addEventListener('dragover', (e) => {
     e.preventDefault();
+
+    // Highlight group when dragging tab over it
+    if (draggedType === 'tab') {
+      const workspaceRect = workspace.getBoundingClientRect();
+      const mouseX = e.clientX - workspaceRect.left;
+      const mouseY = e.clientY - workspaceRect.top;
+
+      // Check which group (if any) the mouse is over
+      let foundGroup = null;
+      for (const [groupId, group] of Object.entries(canvasData.groups)) {
+        if (
+          mouseX >= group.position.x &&
+          mouseX <= group.position.x + group.position.width &&
+          mouseY >= group.position.y &&
+          mouseY <= group.position.y + group.position.height
+        ) {
+          foundGroup = groupId;
+          break;
+        }
+      }
+
+      // Update visual feedback
+      if (foundGroup !== dropTargetGroup) {
+        // Remove highlight from previous group
+        if (dropTargetGroup) {
+          const prevGroupEl = workspace.querySelector(`[data-group-id="${dropTargetGroup}"]`);
+          if (prevGroupEl) prevGroupEl.classList.remove('drop-target');
+        }
+
+        // Add highlight to new group
+        if (foundGroup) {
+          const groupEl = workspace.querySelector(`[data-group-id="${foundGroup}"]`);
+          if (groupEl) groupEl.classList.add('drop-target');
+        }
+
+        dropTargetGroup = foundGroup;
+      }
+    }
   });
 
   // Drag end
   workspace.addEventListener('dragend', (e) => {
     if (draggedElement) {
       draggedElement.style.opacity = '1';
+
+      // Remove drop target highlight
+      if (dropTargetGroup) {
+        const groupEl = workspace.querySelector(`[data-group-id="${dropTargetGroup}"]`);
+        if (groupEl) groupEl.classList.remove('drop-target');
+      }
 
       const workspaceRect = workspace.getBoundingClientRect();
       const newX = e.clientX - workspaceRect.left - dragOffset.x;
@@ -1018,25 +1155,53 @@ function setupCanvasDragAndDrop() {
       const snappedY = snapToGrid(newY);
 
       if (draggedType === 'tab') {
-        canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
+        const tabWidth = 230;
+        const tabHeight = 60;
+
+        // Check for collision
+        if (wouldCollide('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight)) {
+          // Collision detected - revert to original position
+          console.log('Collision detected, reverting position');
+          canvasData.positions[draggedId] = originalPosition;
+        } else {
+          // No collision - update position
+          canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
+
+          // Check if tab was dropped into a group
+          for (const [groupId, group] of Object.entries(canvasData.groups)) {
+            if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
+              // Add tab to this group
+              addTabToGroup(parseInt(draggedId), groupId);
+              break;
+            }
+          }
+        }
       } else if (draggedType === 'group') {
         const group = canvasData.groups[draggedId];
 
-        // Calculate how much the group moved
-        const deltaX = snappedX - group.position.x;
-        const deltaY = snappedY - group.position.y;
+        // Check for collision
+        if (wouldCollide('group', draggedId, snappedX, snappedY, group.position.width, group.position.height)) {
+          // Collision detected - revert to original position
+          console.log('Collision detected, reverting position');
+          group.position.x = originalPosition.x;
+          group.position.y = originalPosition.y;
+        } else {
+          // No collision - calculate how much the group moved
+          const deltaX = snappedX - group.position.x;
+          const deltaY = snappedY - group.position.y;
 
-        // Update group position
-        group.position.x = snappedX;
-        group.position.y = snappedY;
+          // Update group position
+          group.position.x = snappedX;
+          group.position.y = snappedY;
 
-        // Move all tabs in the group by the same delta
-        group.tabs.forEach(tabId => {
-          if (canvasData.positions[tabId]) {
-            canvasData.positions[tabId].x += deltaX;
-            canvasData.positions[tabId].y += deltaY;
-          }
-        });
+          // Move all tabs in the group by the same delta
+          group.tabs.forEach(tabId => {
+            if (canvasData.positions[tabId]) {
+              canvasData.positions[tabId].x += deltaX;
+              canvasData.positions[tabId].y += deltaY;
+            }
+          });
+        }
       }
 
       saveCanvasData();
@@ -1045,6 +1210,8 @@ function setupCanvasDragAndDrop() {
       draggedElement = null;
       draggedType = null;
       draggedId = null;
+      originalPosition = null;
+      dropTargetGroup = null;
     }
   });
 }

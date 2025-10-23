@@ -468,6 +468,20 @@ button.danger:hover {
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
 }
 
+.canvas-group.drop-target {
+  box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.5);
+  animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(52, 152, 219, 0.3);
+  }
+}
+
 .canvas-group-header {
   display: flex;
   align-items: center;
