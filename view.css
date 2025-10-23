@@ -1019,6 +1019,26 @@ body.dark-mode .popup-status.closed {
   color: #d5a8a8;
 }
 
+/* Fullscreen mode */
+.container.fullscreen-mode header,
+.container.fullscreen-mode .controls,
+.container.fullscreen-mode .stats {
+  display: none;
+}
+
+.container.fullscreen-mode {
+  padding: 0;
+  max-width: none;
+  margin: 0;
+}
+
+.container.fullscreen-mode .tree-container,
+.container.fullscreen-mode .canvas-container {
+  margin: 0;
+  border-radius: 0;
+  height: 100vh;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container {

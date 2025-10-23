@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('clearAutoGroupsBtn').addEventListener('click', clearAutoGroups);
+  document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
   document.getElementById('syncFromBrowserBtn').addEventListener('click', syncFromBrowser);
   document.getElementById('saveSessionBtn').addEventListener('click', saveSession);
@@ -132,10 +133,12 @@ function switchViewMode(mode) {
   const createGroupBtn = document.getElementById('createGroupBtn');
   const autoGroupBtn = document.getElementById('autoGroupBtn');
   const clearAutoGroupsBtn = document.getElementById('clearAutoGroupsBtn');
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   clearAutoGroupsBtn.style.display = mode === 'canvas' ? 'block' : 'none';
+  fullscreenBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
   // Show/hide tree-specific controls
   const selectionModeBtn = document.getElementById('selectionModeBtn');
@@ -174,6 +177,38 @@ async function toggleDarkMode() {
   // Save preference to storage
   await chrome.storage.local.set({ darkMode });
 }
+
+// Toggle fullscreen mode
+function toggleFullscreen() {
+  const container = document.querySelector('.container');
+
+  if (!document.fullscreenElement) {
+    // Enter fullscreen
+    container.requestFullscreen().then(() => {
+      container.classList.add('fullscreen-mode');
+      document.getElementById('fullscreenBtn').textContent = '⛶ Exit Fullscreen';
+    }).catch((err) => {
+      console.error('Failed to enter fullscreen:', err);
+    });
+  } else {
+    // Exit fullscreen
+    document.exitFullscreen().then(() => {
+      container.classList.remove('fullscreen-mode');
+      document.getElementById('fullscreenBtn').textContent = '⛶ Fullscreen';
+    });
+  }
+}
+
+// Listen for fullscreen changes (ESC key)
+document.addEventListener('fullscreenchange', () => {
+  const container = document.querySelector('.container');
+  const btn = document.getElementById('fullscreenBtn');
+
+  if (!document.fullscreenElement) {
+    container.classList.remove('fullscreen-mode');
+    if (btn) btn.textContent = '⛶ Fullscreen';
+  }
+});
 
 // Toggle selection mode in tree view
 function toggleSelectionMode() {
@@ -1665,8 +1700,6 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
   const newRect = { x: newX, y: newY, width: newWidth, height: newHeight };
   const tabWidth = 230;
   const tabHeight = 60;
-  const minX = 20; // Minimum distance from left edge
-  const minY = 20; // Minimum distance from top edge
 
   if (type === 'tab') {
     newRect.width = tabWidth;
@@ -1702,22 +1735,15 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
           pushDistance = Math.max(overlapY + 20, 50);
         }
 
-        let newPosX = pos.x;
-        let newPosY = pos.y;
-
         if (pushDirection === 'right') {
-          newPosX = pos.x + pushDistance;
+          pos.x += pushDistance;
         } else if (pushDirection === 'left') {
-          newPosX = Math.max(minX, pos.x - pushDistance);
+          pos.x -= pushDistance;
         } else if (pushDirection === 'down') {
-          newPosY = pos.y + pushDistance;
+          pos.y += pushDistance;
         } else if (pushDirection === 'up') {
-          newPosY = Math.max(minY, pos.y - pushDistance);
+          pos.y -= pushDistance;
         }
-
-        // Ensure element stays on screen
-        pos.x = Math.max(minX, newPosX);
-        pos.y = Math.max(minY, newPosY);
 
         // Recursively push anything that now overlaps with the moved tab
         pushAwayOverlaps('tab', otherId, pos.x, pos.y, tabWidth, tabHeight, depth + 1);
@@ -1750,24 +1776,13 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
           pushDistance = Math.max(overlapY + 30, 100);
         }
 
-        let newGroupX = group.position.x;
-        let newGroupY = group.position.y;
+        const deltaX = pushDirection === 'right' ? pushDistance :
+                       pushDirection === 'left' ? -pushDistance : 0;
+        const deltaY = pushDirection === 'down' ? pushDistance :
+                       pushDirection === 'up' ? -pushDistance : 0;
 
-        if (pushDirection === 'right') {
-          newGroupX += pushDistance;
-        } else if (pushDirection === 'left') {
-          newGroupX = Math.max(minX, group.position.x - pushDistance);
-        } else if (pushDirection === 'down') {
-          newGroupY += pushDistance;
-        } else if (pushDirection === 'up') {
-          newGroupY = Math.max(minY, group.position.y - pushDistance);
-        }
-
-        // Calculate delta and move group
-        const deltaX = newGroupX - group.position.x;
-        const deltaY = newGroupY - group.position.y;
-        group.position.x = newGroupX;
-        group.position.y = newGroupY;
+        group.position.x += deltaX;
+        group.position.y += deltaY;
 
         // Move all tabs in the group
         group.tabs.forEach(tabId => {
@@ -1802,24 +1817,13 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
           pushDistance = Math.max(overlapY + 30, 100);
         }
 
-        let newGroupX = otherGroup.position.x;
-        let newGroupY = otherGroup.position.y;
+        const deltaX = pushDirection === 'right' ? pushDistance :
+                       pushDirection === 'left' ? -pushDistance : 0;
+        const deltaY = pushDirection === 'down' ? pushDistance :
+                       pushDirection === 'up' ? -pushDistance : 0;
 
-        if (pushDirection === 'right') {
-          newGroupX += pushDistance;
-        } else if (pushDirection === 'left') {
-          newGroupX = Math.max(minX, otherGroup.position.x - pushDistance);
-        } else if (pushDirection === 'down') {
-          newGroupY += pushDistance;
-        } else if (pushDirection === 'up') {
-          newGroupY = Math.max(minY, otherGroup.position.y - pushDistance);
-        }
-
-        // Calculate delta and move group
-        const deltaX = newGroupX - otherGroup.position.x;
-        const deltaY = newGroupY - otherGroup.position.y;
-        otherGroup.position.x = newGroupX;
-        otherGroup.position.y = newGroupY;
+        otherGroup.position.x += deltaX;
+        otherGroup.position.y += deltaY;
 
         // Move all tabs in the pushed group
         otherGroup.tabs.forEach(tabId => {
@@ -1855,21 +1859,15 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
           pushDistance = Math.max(overlapY + 20, 50);
         }
 
-        let newPosX = pos.x;
-        let newPosY = pos.y;
-
         if (pushDirection === 'right') {
-          newPosX = pos.x + pushDistance;
+          pos.x += pushDistance;
         } else if (pushDirection === 'left') {
-          newPosX = Math.max(minX, pos.x - pushDistance);
+          pos.x -= pushDistance;
         } else if (pushDirection === 'down') {
-          newPosY = pos.y + pushDistance;
+          pos.y += pushDistance;
         } else if (pushDirection === 'up') {
-          newPosY = Math.max(minY, pos.y - pushDistance);
+          pos.y -= pushDistance;
         }
-
-        pos.x = Math.max(minX, newPosX);
-        pos.y = Math.max(minY, newPosY);
 
         // Recursively push anything that now overlaps
         pushAwayOverlaps('tab', tabId, pos.x, pos.y, tabWidth, tabHeight, depth + 1);
@@ -2086,66 +2084,22 @@ function setupCanvasDragAndDrop() {
         const tabWidth = 230;
         const tabHeight = 60;
 
-        // Save all positions before making changes
-        const savedPositions = JSON.parse(JSON.stringify(canvasData.positions));
-        const savedGroupPositions = {};
-        Object.entries(canvasData.groups).forEach(([id, group]) => {
-          savedGroupPositions[id] = { ...group.position };
-        });
-
         // Update tab position
         canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
 
         // Push away any overlapping elements
         pushAwayOverlaps('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight);
 
-        // Check if any element went off-screen (too far right or down)
-        const maxReasonableX = 3000; // Maximum reasonable X position
-        const maxReasonableY = 3000; // Maximum reasonable Y position
-        let wentOffScreen = false;
-
-        for (const [tabId, pos] of Object.entries(canvasData.positions)) {
-          if (pos.x > maxReasonableX || pos.y > maxReasonableY) {
-            wentOffScreen = true;
+        // Check if tab was dropped into a group
+        for (const [groupId, group] of Object.entries(canvasData.groups)) {
+          if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
+            // Add tab to this group
+            addTabToGroup(parseInt(draggedId), groupId);
             break;
-          }
-        }
-
-        if (!wentOffScreen) {
-          for (const group of Object.values(canvasData.groups)) {
-            if (group.position.x > maxReasonableX || group.position.y > maxReasonableY) {
-              wentOffScreen = true;
-              break;
-            }
-          }
-        }
-
-        if (wentOffScreen) {
-          // Revert all positions
-          canvasData.positions = savedPositions;
-          Object.entries(savedGroupPositions).forEach(([id, pos]) => {
-            canvasData.groups[id].position = pos;
-          });
-          console.log('Drag cancelled: would push elements too far off-screen');
-        } else {
-          // Check if tab was dropped into a group
-          for (const [groupId, group] of Object.entries(canvasData.groups)) {
-            if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
-              // Add tab to this group
-              addTabToGroup(parseInt(draggedId), groupId);
-              break;
-            }
           }
         }
       } else if (draggedType === 'group') {
         const group = canvasData.groups[draggedId];
-
-        // Save all positions before making changes
-        const savedPositions = JSON.parse(JSON.stringify(canvasData.positions));
-        const savedGroupPositions = {};
-        Object.entries(canvasData.groups).forEach(([id, g]) => {
-          savedGroupPositions[id] = { ...g.position };
-        });
 
         // Calculate how much the group moved
         const deltaX = snappedX - group.position.x;
@@ -2165,36 +2119,6 @@ function setupCanvasDragAndDrop() {
 
         // Push away any overlapping elements
         pushAwayOverlaps('group', draggedId, snappedX, snappedY, group.position.width, group.position.height);
-
-        // Check if any element went off-screen (too far right or down)
-        const maxReasonableX = 3000;
-        const maxReasonableY = 3000;
-        let wentOffScreen = false;
-
-        for (const [tabId, pos] of Object.entries(canvasData.positions)) {
-          if (pos.x > maxReasonableX || pos.y > maxReasonableY) {
-            wentOffScreen = true;
-            break;
-          }
-        }
-
-        if (!wentOffScreen) {
-          for (const g of Object.values(canvasData.groups)) {
-            if (g.position.x > maxReasonableX || g.position.y > maxReasonableY) {
-              wentOffScreen = true;
-              break;
-            }
-          }
-        }
-
-        if (wentOffScreen) {
-          // Revert all positions
-          canvasData.positions = savedPositions;
-          Object.entries(savedGroupPositions).forEach(([id, pos]) => {
-            canvasData.groups[id].position = pos;
-          });
-          console.log('Drag cancelled: would push elements too far off-screen');
-        }
       }
 
       saveCanvasData();
