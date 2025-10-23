@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('clearAutoGroupsBtn').addEventListener('click', clearAutoGroups);
-  document.getElementById('addCommentBtn').addEventListener('click', createNewComment);
   document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
   document.getElementById('fullscreenMinimizerDot').addEventListener('click', showFullscreenControls);
   document.getElementById('fullscreenControlsClose').addEventListener('click', hideFullscreenControls);
@@ -138,13 +137,11 @@ function switchViewMode(mode) {
   const createGroupBtn = document.getElementById('createGroupBtn');
   const autoGroupBtn = document.getElementById('autoGroupBtn');
   const clearAutoGroupsBtn = document.getElementById('clearAutoGroupsBtn');
-  const addCommentBtn = document.getElementById('addCommentBtn');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   clearAutoGroupsBtn.style.display = mode === 'canvas' ? 'block' : 'none';
-  addCommentBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   fullscreenBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
   // Show/hide tree-specific controls
@@ -1469,6 +1466,131 @@ function deleteComment(commentId) {
   render();
 }
 
+// Show comment popup for a tab
+function showTabCommentPopup(tabId) {
+  const tab = tabsData[tabId];
+  if (!tab) return;
+
+  // Remove any existing popup
+  const existingPopup = document.querySelector('.canvas-comment-popup');
+  if (existingPopup) existingPopup.remove();
+
+  // Create popup
+  const popup = document.createElement('div');
+  popup.className = 'canvas-comment-popup';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'canvas-comment-popup-header';
+
+  const title = document.createElement('span');
+  title.className = 'canvas-comment-popup-title';
+  title.textContent = 'Tab Comment';
+  header.appendChild(title);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'canvas-comment-popup-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => {
+    popup.remove();
+  });
+  header.appendChild(closeBtn);
+
+  popup.appendChild(header);
+
+  // Tab info
+  const tabInfo = document.createElement('div');
+  tabInfo.style.marginBottom = '12px';
+  tabInfo.style.padding = '8px';
+  tabInfo.style.background = '#f8f9fa';
+  tabInfo.style.borderRadius = '4px';
+  tabInfo.style.fontSize = '12px';
+
+  const tabTitle = document.createElement('div');
+  tabTitle.style.fontWeight = '600';
+  tabTitle.style.marginBottom = '4px';
+  tabTitle.textContent = tab.title;
+  tabInfo.appendChild(tabTitle);
+
+  const tabUrl = document.createElement('div');
+  tabUrl.style.color = '#666';
+  tabUrl.style.overflow = 'hidden';
+  tabUrl.style.textOverflow = 'ellipsis';
+  tabUrl.style.whiteSpace = 'nowrap';
+  tabUrl.textContent = tab.url;
+  tabInfo.appendChild(tabUrl);
+
+  popup.appendChild(tabInfo);
+
+  // Content
+  const content = document.createElement('div');
+  content.className = 'canvas-comment-popup-content';
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'canvas-comment-textarea';
+  textarea.value = tab.comment || '';
+  textarea.placeholder = 'Enter your comment for this tab...';
+  content.appendChild(textarea);
+
+  popup.appendChild(content);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'canvas-comment-popup-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', async () => {
+    tab.comment = textarea.value;
+    await chrome.storage.local.set({ tabs: tabsData });
+    popup.remove();
+    render();
+  });
+  actions.appendChild(saveBtn);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => {
+    popup.remove();
+  });
+  actions.appendChild(cancelBtn);
+
+  popup.appendChild(actions);
+
+  // Position popup near the center of the viewport
+  document.body.appendChild(popup);
+  const rect = popup.getBoundingClientRect();
+  popup.style.left = `${(window.innerWidth - rect.width) / 2}px`;
+  popup.style.top = `${(window.innerHeight - rect.height) / 2}px`;
+
+  // Focus textarea
+  textarea.focus();
+
+  // Close on click outside
+  const closeOnClickOutside = (e) => {
+    if (!popup.contains(e.target)) {
+      popup.remove();
+      document.removeEventListener('click', closeOnClickOutside);
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('click', closeOnClickOutside);
+  }, 100);
+}
+
+// Delete comment from tab
+async function deleteTabComment(tabId) {
+  if (!confirm('Delete this comment?')) return;
+
+  const tab = tabsData[tabId];
+  if (tab) {
+    delete tab.comment;
+    await chrome.storage.local.set({ tabs: tabsData });
+    render();
+  }
+}
+
 // Render canvas view
 function renderCanvas() {
   const container = document.getElementById('treeContainer');
@@ -1692,6 +1814,15 @@ function renderCanvasTab(tab, offsetX = 0, offsetY = 0) {
   headerDiv.appendChild(titleDiv);
 
   tabDiv.appendChild(headerDiv);
+
+  // Comment indicator if tab has a comment
+  if (tab.comment) {
+    const commentIndicator = document.createElement('div');
+    commentIndicator.className = 'canvas-tab-comment-indicator';
+    commentIndicator.textContent = '💬';
+    commentIndicator.title = 'This tab has a comment. Click the ⋯ menu to view/edit.';
+    tabDiv.appendChild(commentIndicator);
+  }
 
   // Context menu button
   const menuBtn = document.createElement('button');
@@ -1924,6 +2055,35 @@ function showTabContextMenu(tabId, x, y) {
 
   const menu = document.createElement('div');
   menu.className = 'canvas-context-menu';
+
+  // Option to add/edit comment
+  const hasComment = tabsData[tabId] && tabsData[tabId].comment;
+  const commentItem = document.createElement('div');
+  commentItem.className = 'canvas-context-menu-item';
+  commentItem.textContent = hasComment ? '✏️ Edit Comment' : '💬 Add Comment';
+  commentItem.onclick = () => {
+    showTabCommentPopup(tabId);
+    menu.remove();
+  };
+  menu.appendChild(commentItem);
+
+  // Option to delete comment if one exists
+  if (hasComment) {
+    const deleteCommentItem = document.createElement('div');
+    deleteCommentItem.className = 'canvas-context-menu-item';
+    deleteCommentItem.textContent = '🗑️ Delete Comment';
+    deleteCommentItem.onclick = () => {
+      deleteTabComment(tabId);
+      menu.remove();
+    };
+    menu.appendChild(deleteCommentItem);
+  }
+
+  // Separator
+  const separator = document.createElement('div');
+  separator.style.borderTop = '1px solid #ddd';
+  separator.style.margin = '4px 0';
+  menu.appendChild(separator);
 
   // Check if tab is in a group
   const currentGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(tabId));

@@ -514,6 +514,15 @@ button.active:hover {
   white-space: nowrap;
 }
 
+.canvas-tab-comment-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 16px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 .canvas-tab-menu-btn {
   position: absolute;
   bottom: 4px;
