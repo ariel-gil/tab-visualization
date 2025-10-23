@@ -1366,6 +1366,25 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
         return true;
       }
     }
+
+    // Check collision with tabs (that are NOT in this group)
+    const group = canvasData.groups[id];
+    const tabsInGroup = group ? group.tabs : [];
+    const tabWidth = 230;
+    const tabHeight = 60;
+
+    for (const [tabId, pos] of Object.entries(canvasData.positions)) {
+      const tabIdNum = parseInt(tabId);
+
+      // Skip tabs that are inside this group
+      if (tabsInGroup.includes(tabIdNum)) continue;
+
+      const tabRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
+      if (checkCollision(newRect, tabRect)) {
+        console.log(`Collision detected between group ${id} and tab ${tabId}`);
+        return true;
+      }
+    }
   }
 
   return false;
