@@ -2639,7 +2639,7 @@ function setupCanvasDragAndDrop() {
   });
 
   // Drag end
-  workspace.addEventListener('dragend', (e) => {
+  workspace.addEventListener('dragend', async (e) => {
     if (draggedElement) {
       draggedElement.style.opacity = '1';
 
