@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sortOrderSelect').addEventListener('change', handleSortChange);
   document.getElementById('gridSnapToggle').addEventListener('change', handleGridSnapToggle);
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
+  document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
   document.getElementById('saveSessionBtn').addEventListener('click', saveSession);
   document.getElementById('loadSessionBtn').addEventListener('click', () => {
@@ -110,8 +111,10 @@ function switchViewMode(mode) {
   // Show/hide canvas-specific controls
   const gridSnapLabel = document.getElementById('gridSnapToggleLabel');
   const createGroupBtn = document.getElementById('createGroupBtn');
+  const autoGroupBtn = document.getElementById('autoGroupBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
+  autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
   render();
 }
@@ -594,6 +597,66 @@ function createNewGroup() {
   render();
 }
 
+// Auto-group tabs by domain
+function autoGroupByDomain() {
+  if (!confirm('This will create groups based on website domains. Continue?')) return;
+
+  // Clear existing groups
+  canvasData.groups = {};
+
+  // Get active tabs
+  const activeTabs = Object.values(tabsData).filter(tab => tab.active);
+
+  // Group tabs by domain
+  const domainMap = {};
+  activeTabs.forEach(tab => {
+    try {
+      const url = new URL(tab.url);
+      const domain = url.hostname.replace(/^www\./, ''); // Remove www. prefix
+
+      if (!domainMap[domain]) {
+        domainMap[domain] = [];
+      }
+      domainMap[domain].push(tab.id);
+    } catch (e) {
+      // Skip invalid URLs
+    }
+  });
+
+  // Create groups for domains with 2+ tabs
+  const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
+  let groupIndex = 0;
+  let yOffset = 50;
+
+  Object.entries(domainMap).forEach(([domain, tabIds]) => {
+    if (tabIds.length >= 2) {
+      const groupId = 'group_' + Date.now() + '_' + groupIndex;
+      const color = colors[groupIndex % colors.length];
+
+      // Capitalize domain name nicely
+      const groupName = domain.split('.')[0].charAt(0).toUpperCase() +
+                       domain.split('.')[0].slice(1);
+
+      canvasData.groups[groupId] = {
+        id: groupId,
+        name: groupName,
+        color: color,
+        tabs: tabIds,
+        position: { x: 50, y: yOffset, width: 300, height: 200 }
+      };
+
+      yOffset += 250; // Stack groups vertically
+      groupIndex++;
+    }
+  });
+
+  saveCanvasData();
+  render();
+
+  const groupCount = Object.keys(canvasData.groups).length;
+  alert(`Created ${groupCount} group(s) based on domains. Tabs with unique domains remain ungrouped.`);
+}
+
 // Delete a group (but keep the tabs)
 function deleteGroup(groupId) {
   if (!confirm('Delete this group? Tabs will remain on the canvas.')) return;
@@ -733,12 +796,6 @@ function renderCanvasTab(tab) {
   titleDiv.className = 'canvas-tab-title';
   titleDiv.textContent = tab.title;
   headerDiv.appendChild(titleDiv);
-
-  // Status badge
-  const statusSpan = document.createElement('span');
-  statusSpan.className = `node-status ${tab.active ? 'active' : 'closed'}`;
-  statusSpan.textContent = tab.active ? 'Active' : 'Closed';
-  headerDiv.appendChild(statusSpan);
 
   tabDiv.appendChild(headerDiv);
 
