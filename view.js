@@ -852,10 +852,11 @@ function createNewGroup() {
 
 // Auto-group tabs by domain
 function autoGroupByDomain() {
-  if (!confirm('This will create groups based on website domains. Continue?')) return;
+  if (!confirm('This will create groups based on website domains and rearrange all tabs. Continue?')) return;
 
-  // Clear existing groups
+  // Clear existing groups and positions for a fresh layout
   canvasData.groups = {};
+  canvasData.positions = {};
 
   // Get active tabs
   const activeTabs = Object.values(tabsData).filter(tab => tab.active);
@@ -911,6 +912,7 @@ function autoGroupByDomain() {
       };
 
       // Position tabs inside the group in a grid layout
+      // Only reposition tabs if they don't have existing positions
       tabIds.forEach((tabId, index) => {
         const row = Math.floor(index / tabsPerRow);
         const col = index % tabsPerRow;
@@ -918,11 +920,40 @@ function autoGroupByDomain() {
         const tabX = 50 + padding + (col * (tabWidth + padding));
         const tabY = yOffset + headerHeight + padding + (row * (tabHeight + padding));
 
+        // Always update position when auto-grouping to place tabs inside the group
         canvasData.positions[tabId] = { x: tabX, y: tabY };
       });
 
       yOffset += groupHeight + 30; // Stack groups vertically with spacing
       groupIndex++;
+    }
+  });
+
+  // Position ungrouped tabs (tabs not in any group) to the right
+  let ungroupedX = 600; // Start to the right of grouped tabs
+  let ungroupedY = 50;
+  const ungroupedTabWidth = 230;
+  const ungroupedTabHeight = 70;
+  const ungroupedPadding = 15;
+  const ungroupedPerColumn = 8;
+
+  activeTabs.forEach(tab => {
+    // Check if tab is in a group
+    const inAnyGroup = Object.values(canvasData.groups).some(g => g.tabs.includes(tab.id));
+
+    if (!inAnyGroup && !canvasData.positions[tab.id]) {
+      // Position ungrouped tab
+      const index = Object.keys(canvasData.positions).filter(id =>
+        !Object.values(canvasData.groups).some(g => g.tabs.includes(parseInt(id)))
+      ).length;
+
+      const row = index % ungroupedPerColumn;
+      const col = Math.floor(index / ungroupedPerColumn);
+
+      canvasData.positions[tab.id] = {
+        x: ungroupedX + (col * (ungroupedTabWidth + ungroupedPadding)),
+        y: ungroupedY + (row * (ungroupedTabHeight + ungroupedPadding))
+      };
     }
   });
 
