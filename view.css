@@ -521,6 +521,7 @@ button.active:hover {
   font-size: 16px;
   opacity: 0.8;
   pointer-events: none;
+  z-index: 20;
 }
 
 .canvas-tab-menu-btn {
@@ -629,7 +630,7 @@ button.active:hover {
   border: 1px solid #ddd;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  z-index: 1000;
+  z-index: 10001;
   min-width: 180px;
   max-width: 280px;
   max-height: 400px;

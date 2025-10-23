@@ -35,8 +35,9 @@ chrome.tabs.onCreated.addListener(async (tab) => {
   // Get current stored tabs
   const { tabs = {} } = await chrome.storage.local.get('tabs');
 
-  // Add new tab to storage
+  // Add new tab to storage (preserve existing data if tab ID was already tracked)
   tabs[tab.id] = {
+    ...(tabs[tab.id] || {}), // Preserve existing properties like 'comment' if they exist
     id: tab.id,
     title: tab.title || 'Loading...',
     url: tab.url || '',
@@ -62,6 +63,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
   // Update existing tab or create if it doesn't exist
   if (tabs[tabId]) {
+    // IMPORTANT: Preserve existing fields like 'comment' when updating
     if (changeInfo.title) tabs[tabId].title = changeInfo.title;
     if (changeInfo.url) {
       tabs[tabId].url = changeInfo.url;
@@ -69,6 +71,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       tabs[tabId].timestamp = Date.now();
     }
     if (changeInfo.favIconUrl) tabs[tabId].favIconUrl = changeInfo.favIconUrl;
+    // Note: comment field is preserved automatically since we only update specific properties
   } else {
     // Tab wasn't tracked yet, add it
     tabs[tabId] = {
@@ -79,6 +82,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       parentId: null,
       timestamp: Date.now(),
       active: true
+      // comment field will be added later by view.js when user adds a comment
     };
   }
 
@@ -93,9 +97,10 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   // Get current stored tabs
   const { tabs = {} } = await chrome.storage.local.get('tabs');
 
-  // Mark tab as inactive instead of deleting (to preserve history)
+  // Mark tab as inactive instead of deleting (to preserve history and comments)
   if (tabs[tabId]) {
     tabs[tabId].active = false;
+    // Note: comment field is preserved since we only update the active property
   }
 
   // Save updated tabs

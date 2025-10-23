@@ -7,6 +7,7 @@ let currentActiveTabId = null; // ID of the currently active tab
 let collapsedNodes = new Set(); // Track which nodes are collapsed
 let viewMode = 'tree'; // 'tree', 'sequential', or 'canvas'
 let sortOrder = 'newest'; // 'newest' or 'oldest'
+let isUpdatingStorage = false; // Flag to prevent storage listener from reloading when we update
 
 // Tree view selection mode
 let selectionMode = false; // Whether multi-select mode is active
@@ -62,8 +63,10 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAndRender();
 
   // Listen for storage changes to update in real-time
+  // This will fire when background.js updates tabs (new tab, tab closed, etc.)
   chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && changes.tabs) {
+    if (namespace === 'local' && changes.tabs && !isUpdatingStorage) {
+      console.log('Storage changed by background.js, reloading...');
       loadAndRender();
     }
   });
@@ -1546,10 +1549,35 @@ function showTabCommentPopup(tabId) {
   saveBtn.className = 'primary';
   saveBtn.textContent = 'Save';
   saveBtn.addEventListener('click', async () => {
-    tab.comment = textarea.value;
+    console.log('=== Saving tab comment ===');
+    console.log('Tab ID:', tabId);
+    console.log('Comment text:', textarea.value);
+    const trimmedComment = textarea.value.trim();
+    console.log('Trimmed comment:', trimmedComment);
+
+    if (trimmedComment) {
+      tab.comment = trimmedComment;
+      console.log('Comment saved to tab object:', tab.comment);
+      console.log('Tab object:', tab);
+    } else {
+      delete tab.comment; // Remove comment if empty
+      console.log('Comment deleted (was empty)');
+    }
+
+    // Set flag to prevent storage listener from reloading
+    isUpdatingStorage = true;
     await chrome.storage.local.set({ tabs: tabsData });
+    console.log('Saved to storage. Tab in tabsData:', tabsData[tabId]);
+    console.log('Current view mode:', viewMode);
+
+    // Reset flag after a short delay to allow storage event to process
+    setTimeout(() => {
+      isUpdatingStorage = false;
+    }, 100);
+
     popup.remove();
     render();
+    console.log('Render complete');
   });
   actions.appendChild(saveBtn);
 
@@ -1590,13 +1618,28 @@ async function deleteTabComment(tabId) {
   const tab = tabsData[tabId];
   if (tab) {
     delete tab.comment;
+
+    // Set flag to prevent storage listener from reloading
+    isUpdatingStorage = true;
     await chrome.storage.local.set({ tabs: tabsData });
+
+    // Reset flag after a short delay
+    setTimeout(() => {
+      isUpdatingStorage = false;
+    }, 100);
+
     render();
   }
 }
 
 // Render canvas view
 function renderCanvas() {
+  console.log('=== renderCanvas called ===');
+  console.log('Tabs with comments:', Object.entries(tabsData)
+    .filter(([id, tab]) => tab.comment)
+    .map(([id, tab]) => ({ id, title: tab.title, comment: tab.comment }))
+  );
+
   const container = document.getElementById('treeContainer');
 
   // Save scroll position before clearing
@@ -1820,12 +1863,22 @@ function renderCanvasTab(tab, offsetX = 0, offsetY = 0) {
   tabDiv.appendChild(headerDiv);
 
   // Comment indicator if tab has a comment
-  if (tab.comment) {
+  console.log('Checking comment for tab', tab.id, ':', tab.comment);
+  if (tab.comment && tab.comment.trim()) {
+    console.log('✓ Creating comment indicator for tab', tab.id);
     const commentIndicator = document.createElement('div');
     commentIndicator.className = 'canvas-tab-comment-indicator';
     commentIndicator.textContent = '💬';
     commentIndicator.title = 'This tab has a comment. Click the ⋯ menu to view/edit.';
     tabDiv.appendChild(commentIndicator);
+    console.log('Comment indicator appended to tabDiv');
+    console.log('Indicator styles:', {
+      position: commentIndicator.style.position,
+      className: commentIndicator.className,
+      textContent: commentIndicator.textContent
+    });
+  } else {
+    console.log('✗ No comment indicator - comment:', tab.comment);
   }
 
   // Context menu button
@@ -2053,12 +2106,17 @@ function showChildrenPopup(parentId, x, y) {
 
 // Show context menu for tab
 function showTabContextMenu(tabId, x, y) {
+  console.log('=== showTabContextMenu called ===');
+  console.log('TabId:', tabId, 'Position:', x, y);
+  console.log('Is fullscreen?', !!document.fullscreenElement);
+
   // Remove existing context menu
   const existing = document.querySelector('.canvas-context-menu');
   if (existing) existing.remove();
 
   const menu = document.createElement('div');
   menu.className = 'canvas-context-menu';
+  console.log('Menu element created');
 
   // Option to add/edit comment
   const hasComment = tabsData[tabId] && tabsData[tabId].comment;
@@ -2143,6 +2201,7 @@ function showTabContextMenu(tabId, x, y) {
   }
 
   document.body.appendChild(menu);
+  console.log('Menu appended to body');
 
   // Position the menu, making sure it doesn't go off-screen
   const menuRect = menu.getBoundingClientRect();
@@ -2168,6 +2227,11 @@ function showTabContextMenu(tabId, x, y) {
 
   menu.style.left = finalX + 'px';
   menu.style.top = finalY + 'px';
+
+  console.log('Menu positioned at:', finalX, finalY);
+  console.log('Menu rect:', menuRect);
+  console.log('Menu computed style z-index:', window.getComputedStyle(menu).zIndex);
+  console.log('Menu element in DOM?', document.body.contains(menu));
 
   // Close menu on click outside
   setTimeout(() => {
