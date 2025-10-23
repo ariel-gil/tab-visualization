@@ -1036,13 +1036,41 @@ function deleteGroup(groupId) {
 function addTabToGroup(tabId, groupId) {
   if (!canvasData.groups[groupId]) return;
 
+  const group = canvasData.groups[groupId];
+
   // Remove from other groups first
-  Object.values(canvasData.groups).forEach(group => {
-    group.tabs = group.tabs.filter(id => id !== tabId);
+  Object.values(canvasData.groups).forEach(g => {
+    g.tabs = g.tabs.filter(id => id !== tabId);
   });
 
   // Add to new group
-  canvasData.groups[groupId].tabs.push(tabId);
+  group.tabs.push(tabId);
+
+  // Position the tab inside the group
+  // Arrange tabs in a 2-column grid inside the group
+  const tabsPerRow = 2;
+  const tabWidth = 230;
+  const tabHeight = 70;
+  const padding = 15;
+  const headerHeight = 35;
+
+  const index = group.tabs.length - 1; // Index of the newly added tab
+  const row = Math.floor(index / tabsPerRow);
+  const col = index % tabsPerRow;
+
+  const tabX = group.position.x + padding + (col * (tabWidth + padding));
+  const tabY = group.position.y + headerHeight + padding + (row * (tabHeight + padding));
+
+  canvasData.positions[tabId] = { x: tabX, y: tabY };
+
+  // Expand group if necessary to fit all tabs
+  const rows = Math.ceil(group.tabs.length / tabsPerRow);
+  const minGroupWidth = (tabsPerRow * tabWidth) + ((tabsPerRow + 1) * padding);
+  const minGroupHeight = headerHeight + (rows * tabHeight) + ((rows + 1) * padding);
+
+  group.position.width = Math.max(group.position.width, minGroupWidth);
+  group.position.height = Math.max(group.position.height, minGroupHeight);
+
   saveCanvasData();
   render();
 }
