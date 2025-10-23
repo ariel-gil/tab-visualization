@@ -19,6 +19,7 @@ let darkMode = false; // Whether dark mode is enabled
 let canvasData = {
   positions: {}, // { tabId: { x, y } }
   groups: {}, // { groupId: { id, name, color, tabs: [tabId], position: { x, y, width, height } } }
+  comments: {}, // { commentId: { id, text, position: { x, y }, timestamp } }
 };
 let gridSnapEnabled = true; // Whether to snap to grid
 let gridSize = 20; // Grid size in pixels
@@ -44,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('clearAutoGroupsBtn').addEventListener('click', clearAutoGroups);
+  document.getElementById('addCommentBtn').addEventListener('click', createNewComment);
   document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
   document.getElementById('fullscreenMinimizerDot').addEventListener('click', showFullscreenControls);
   document.getElementById('fullscreenControlsClose').addEventListener('click', hideFullscreenControls);
@@ -135,11 +137,13 @@ function switchViewMode(mode) {
   const createGroupBtn = document.getElementById('createGroupBtn');
   const autoGroupBtn = document.getElementById('autoGroupBtn');
   const clearAutoGroupsBtn = document.getElementById('clearAutoGroupsBtn');
+  const addCommentBtn = document.getElementById('addCommentBtn');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   clearAutoGroupsBtn.style.display = mode === 'canvas' ? 'block' : 'none';
+  addCommentBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   fullscreenBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
   // Show/hide tree-specific controls
@@ -930,7 +934,8 @@ async function clearHistory() {
   // This is important - without clearing canvasData, old groups would persist
   canvasData = {
     positions: {},
-    groups: {}
+    groups: {},
+    comments: {}
   };
   await chrome.storage.local.set({ canvasData });
 
@@ -1279,6 +1284,153 @@ function removeTabFromGroup(tabId) {
   render();
 }
 
+// Create a new comment
+function createNewComment() {
+  const commentId = 'comment_' + Date.now();
+  const comment = {
+    id: commentId,
+    text: '',
+    position: {
+      x: 100,
+      y: 100
+    },
+    timestamp: Date.now()
+  };
+
+  canvasData.comments[commentId] = comment;
+  saveCanvasData();
+  render();
+
+  // Open the comment popup immediately for editing
+  setTimeout(() => {
+    showCommentPopup(commentId, true);
+  }, 100);
+}
+
+// Show comment popup
+function showCommentPopup(commentId, isNew = false) {
+  const comment = canvasData.comments[commentId];
+  if (!comment) return;
+
+  // Remove any existing popup
+  const existingPopup = document.querySelector('.canvas-comment-popup');
+  if (existingPopup) existingPopup.remove();
+
+  // Create popup
+  const popup = document.createElement('div');
+  popup.className = 'canvas-comment-popup';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'canvas-comment-popup-header';
+
+  const title = document.createElement('span');
+  title.className = 'canvas-comment-popup-title';
+  title.textContent = isNew ? 'New Comment' : 'Comment';
+  header.appendChild(title);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'canvas-comment-popup-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => {
+    popup.remove();
+  });
+  header.appendChild(closeBtn);
+
+  popup.appendChild(header);
+
+  // Content
+  const content = document.createElement('div');
+  content.className = 'canvas-comment-popup-content';
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'canvas-comment-textarea';
+  textarea.value = comment.text || '';
+  textarea.placeholder = 'Enter your comment...';
+  content.appendChild(textarea);
+
+  // Timestamp
+  if (!isNew) {
+    const timestamp = document.createElement('div');
+    timestamp.className = 'canvas-comment-timestamp';
+    timestamp.textContent = 'Created: ' + new Date(comment.timestamp).toLocaleString();
+    content.appendChild(timestamp);
+  }
+
+  popup.appendChild(content);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'canvas-comment-popup-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', () => {
+    comment.text = textarea.value;
+    saveCanvasData();
+    popup.remove();
+    render();
+  });
+  actions.appendChild(saveBtn);
+
+  if (!isNew) {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'danger';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => {
+      if (confirm('Delete this comment?')) {
+        deleteComment(commentId);
+        popup.remove();
+      }
+    });
+    actions.appendChild(deleteBtn);
+  }
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => {
+    if (isNew && !comment.text) {
+      // Delete empty new comment
+      deleteComment(commentId);
+    }
+    popup.remove();
+  });
+  actions.appendChild(cancelBtn);
+
+  popup.appendChild(actions);
+
+  // Position popup near the center of the viewport
+  document.body.appendChild(popup);
+  const rect = popup.getBoundingClientRect();
+  popup.style.left = `${(window.innerWidth - rect.width) / 2}px`;
+  popup.style.top = `${(window.innerHeight - rect.height) / 2}px`;
+
+  // Focus textarea
+  textarea.focus();
+
+  // Close on click outside
+  const closeOnClickOutside = (e) => {
+    if (!popup.contains(e.target)) {
+      if (isNew && !comment.text) {
+        deleteComment(commentId);
+      }
+      popup.remove();
+      document.removeEventListener('click', closeOnClickOutside);
+    }
+  };
+  setTimeout(() => {
+    document.addEventListener('click', closeOnClickOutside);
+  }, 100);
+}
+
+// Delete comment
+function deleteComment(commentId) {
+  delete canvasData.comments[commentId];
+  saveCanvasData();
+  render();
+}
+
 // Render canvas view
 function renderCanvas() {
   const container = document.getElementById('treeContainer');
@@ -1339,6 +1491,17 @@ function renderCanvas() {
     }
   });
 
+  // Check comment positions to find the extent of the canvas
+  Object.values(canvasData.comments || {}).forEach(comment => {
+    if (comment.position) {
+      hasElements = true;
+      minX = Math.min(minX, comment.position.x);
+      minY = Math.min(minY, comment.position.y);
+      maxX = Math.max(maxX, comment.position.x + 36); // comment icon width
+      maxY = Math.max(maxY, comment.position.y + 36); // comment icon height
+    }
+  });
+
   // If no elements have positions yet, use default bounds
   if (!hasElements) {
     minX = 0;
@@ -1389,6 +1552,12 @@ function renderCanvas() {
   tabsArray.forEach(tab => {
     const tabElement = renderCanvasTab(tab, offsetX, offsetY);
     canvasWorkspace.appendChild(tabElement);
+  });
+
+  // Render comments (on top of everything)
+  Object.values(canvasData.comments || {}).forEach(comment => {
+    const commentElement = renderCanvasComment(comment, offsetX, offsetY);
+    canvasWorkspace.appendChild(commentElement);
   });
 
   container.appendChild(canvasWorkspace);
@@ -1572,6 +1741,30 @@ function renderCanvasGroup(group, offsetX = 0, offsetY = 0) {
   groupDiv.appendChild(resizeHandle);
 
   return groupDiv;
+}
+
+// Render a comment in canvas view
+function renderCanvasComment(comment, offsetX = 0, offsetY = 0) {
+  const commentDiv = document.createElement('div');
+  commentDiv.className = 'canvas-comment';
+  commentDiv.dataset.commentId = comment.id;
+  commentDiv.draggable = true;
+
+  // Apply offset to support negative coordinates in infinite canvas
+  commentDiv.style.left = (comment.position.x + offsetX) + 'px';
+  commentDiv.style.top = (comment.position.y + offsetY) + 'px';
+
+  // Comment icon
+  commentDiv.textContent = '💬';
+  commentDiv.title = comment.text ? comment.text.substring(0, 50) + (comment.text.length > 50 ? '...' : '') : 'Click to add comment';
+
+  // Click to show/edit comment
+  commentDiv.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showCommentPopup(comment.id, false);
+  });
+
+  return commentDiv;
 }
 
 // Show children popup in canvas view
@@ -2137,6 +2330,19 @@ function setupCanvasDragAndDrop() {
       dragOffset.y = e.clientY - rect.top;
 
       target.style.opacity = '0.5';
+    } else if (target.classList.contains('canvas-comment')) {
+      draggedType = 'comment';
+      draggedId = target.dataset.commentId;
+      draggedElement = target;
+
+      // Save original position
+      originalPosition = { ...canvasData.comments[draggedId].position };
+
+      const rect = target.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+
+      target.style.opacity = '0.5';
     }
   });
 
@@ -2261,6 +2467,17 @@ function setupCanvasDragAndDrop() {
 
         // Push away any overlapping elements
         pushAwayOverlaps('group', draggedId, snappedX, snappedY, group.position.width, group.position.height);
+      } else if (draggedType === 'comment') {
+        const comment = canvasData.comments[draggedId];
+        const commentWidth = 36;
+        const commentHeight = 36;
+
+        // Update comment position (store in canvas coordinates)
+        comment.position.x = snappedX;
+        comment.position.y = snappedY;
+
+        // Push away any overlapping elements
+        pushAwayOverlaps('comment', draggedId, snappedX, snappedY, commentWidth, commentHeight);
       }
 
       saveCanvasData();
