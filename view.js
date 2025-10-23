@@ -860,7 +860,8 @@ async function syncFromBrowser() {
   alert(`Synced with browser!\n${addedCount} new tab(s) added.`);
 }
 
-// Clear all history
+// Clear all history - tabs, groups, and canvas positions
+// This provides a clean slate for starting fresh or after loading a session
 async function clearHistory() {
   if (!confirm('Are you sure you want to clear all tab history and groups? This cannot be undone.\n\nTip: Use "Sync from Browser" to reload currently open tabs.')) {
     return;
@@ -871,6 +872,7 @@ async function clearHistory() {
   tabsData = {};
 
   // Clear canvas data (groups and positions)
+  // This is important - without clearing canvasData, old groups would persist
   canvasData = {
     positions: {},
     groups: {}
@@ -1253,6 +1255,44 @@ function renderCanvas() {
     return;
   }
 
+  // Calculate bounding box of all elements to support infinite canvas (including negative coordinates)
+  let minX = 0, minY = 0, maxX = 1000, maxY = 1000;
+
+  // Check tab positions
+  tabsArray.forEach(tab => {
+    const pos = canvasData.positions[tab.id];
+    if (pos) {
+      minX = Math.min(minX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + 230); // tab width
+      maxY = Math.max(maxY, pos.y + 100); // approximate tab height
+    }
+  });
+
+  // Check group positions
+  Object.values(canvasData.groups).forEach(group => {
+    if (group.position) {
+      minX = Math.min(minX, group.position.x);
+      minY = Math.min(minY, group.position.y);
+      maxX = Math.max(maxX, group.position.x + group.position.width);
+      maxY = Math.max(maxY, group.position.y + group.position.height);
+    }
+  });
+
+  // Add padding around the content
+  const padding = 500;
+  minX -= padding;
+  minY -= padding;
+  maxX += padding;
+  maxY += padding;
+
+  // Calculate offset needed to make all coordinates positive
+  const offsetX = minX < 0 ? -minX : 0;
+  const offsetY = minY < 0 ? -minY : 0;
+
+  // Store the offset in the workspace for later use in drag handlers
+  const workspaceOffset = { x: offsetX, y: offsetY };
+
   // Clear container and set up canvas
   container.innerHTML = '';
   container.className = 'canvas-container';
@@ -1262,15 +1302,25 @@ function renderCanvas() {
   canvasWorkspace.className = 'canvas-workspace';
   canvasWorkspace.id = 'canvasWorkspace';
 
+  // Store offset as data attribute for drag handlers to access
+  canvasWorkspace.dataset.offsetX = offsetX;
+  canvasWorkspace.dataset.offsetY = offsetY;
+
+  // Set workspace size to encompass all elements
+  const workspaceWidth = maxX - minX;
+  const workspaceHeight = maxY - minY;
+  canvasWorkspace.style.width = workspaceWidth + 'px';
+  canvasWorkspace.style.height = workspaceHeight + 'px';
+
   // Render groups first (so tabs render on top)
   Object.values(canvasData.groups).forEach(group => {
-    const groupElement = renderCanvasGroup(group);
+    const groupElement = renderCanvasGroup(group, offsetX, offsetY);
     canvasWorkspace.appendChild(groupElement);
   });
 
   // Render tabs
   tabsArray.forEach(tab => {
-    const tabElement = renderCanvasTab(tab);
+    const tabElement = renderCanvasTab(tab, offsetX, offsetY);
     canvasWorkspace.appendChild(tabElement);
   });
 
@@ -1314,7 +1364,9 @@ function renderCanvasTab(tab) {
       x: 20 + (index % cols) * 250,
       y: 20 + Math.floor(index / cols) * 100
     };
+    // Save the position immediately so it's consistent
     canvasData.positions[tab.id] = position;
+    saveCanvasData(); // Persist to storage
   }
 
   tabDiv.style.left = position.x + 'px';
