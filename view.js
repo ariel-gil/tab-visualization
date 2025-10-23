@@ -29,6 +29,7 @@ let draggedType = null; // 'tab' or 'group'
 let draggedId = null; // ID of dragged element
 let originalPosition = null; // Original position before dragging (for collision revert)
 let dropTargetGroup = null; // Group that tab is being dragged over
+let dropTargetTab = null; // Tab that another tab is being dragged over (for parent-child)
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -300,6 +301,43 @@ function handleTabSelection(tabId, event) {
 }
 
 // Make selected tabs children of target tab
+// Make a single tab a child of another tab (for canvas drag-drop)
+async function makeTabChild(childId, parentId) {
+  // Don't allow a tab to be its own parent
+  if (childId === parentId) {
+    alert('Cannot make a tab its own child!');
+    return false;
+  }
+
+  // Check for circular relationships (parent becoming child of its descendant)
+  const descendants = new Set();
+  const collectDescendants = (tabId) => {
+    if (!tabsData[tabId]) return;
+    Object.values(tabsData).forEach(tab => {
+      if (tab.parentId === tabId) {
+        descendants.add(tab.id);
+        collectDescendants(tab.id);
+      }
+    });
+  };
+  collectDescendants(parentId);
+
+  if (descendants.has(childId)) {
+    alert('Cannot create circular parent-child relationships!');
+    return false;
+  }
+
+  // Update parent relationship
+  if (tabsData[childId]) {
+    tabsData[childId].parentId = parentId;
+  }
+
+  // Save to storage
+  await chrome.storage.local.set({ tabs: tabsData });
+
+  return true;
+}
+
 async function makeTabsChildren(parentId) {
   if (selectedTabs.size === 0) return;
 
@@ -2350,7 +2388,7 @@ function setupCanvasDragAndDrop() {
   workspace.addEventListener('dragover', (e) => {
     e.preventDefault();
 
-    // Highlight group when dragging tab over it
+    // Highlight group or tab when dragging tab over it
     if (draggedType === 'tab') {
       const workspaceRect = workspace.getBoundingClientRect();
       const mouseX = e.clientX - workspaceRect.left + workspace.scrollLeft;
@@ -2364,21 +2402,60 @@ function setupCanvasDragAndDrop() {
       const canvasMouseX = mouseX - offsetX;
       const canvasMouseY = mouseY - offsetY;
 
-      // Check which group (if any) the mouse is over
-      let foundGroup = null;
-      for (const [groupId, group] of Object.entries(canvasData.groups)) {
-        if (
-          canvasMouseX >= group.position.x &&
-          canvasMouseX <= group.position.x + group.position.width &&
-          canvasMouseY >= group.position.y &&
-          canvasMouseY <= group.position.y + group.position.height
-        ) {
-          foundGroup = groupId;
+      // Check which tab (if any) the mouse is over (for parent-child relationship)
+      let foundTab = null;
+      const tabWidth = 230;
+      const tabHeight = 60;
+      const draggedTabId = parseInt(draggedId);
+
+      for (const [otherId, pos] of Object.entries(canvasData.positions)) {
+        const otherTabId = parseInt(otherId);
+        if (otherTabId === draggedTabId) continue;
+        if (!tabsData[otherTabId] || !tabsData[otherTabId].active) continue;
+
+        if (canvasMouseX >= pos.x &&
+            canvasMouseX <= pos.x + tabWidth &&
+            canvasMouseY >= pos.y &&
+            canvasMouseY <= pos.y + tabHeight) {
+          foundTab = otherTabId;
           break;
         }
       }
 
-      // Update visual feedback
+      // Update tab highlight
+      if (foundTab !== dropTargetTab) {
+        // Remove highlight from previous tab
+        if (dropTargetTab) {
+          const prevTabEl = workspace.querySelector(`[data-tab-id="${dropTargetTab}"]`);
+          if (prevTabEl) prevTabEl.classList.remove('drop-target-parent');
+        }
+
+        // Add highlight to new tab
+        if (foundTab) {
+          const tabEl = workspace.querySelector(`[data-tab-id="${foundTab}"]`);
+          if (tabEl) tabEl.classList.add('drop-target-parent');
+        }
+
+        dropTargetTab = foundTab;
+      }
+
+      // Check which group (if any) the mouse is over (only if not over a tab)
+      let foundGroup = null;
+      if (!foundTab) {
+        for (const [groupId, group] of Object.entries(canvasData.groups)) {
+          if (
+            canvasMouseX >= group.position.x &&
+            canvasMouseX <= group.position.x + group.position.width &&
+            canvasMouseY >= group.position.y &&
+            canvasMouseY <= group.position.y + group.position.height
+          ) {
+            foundGroup = groupId;
+            break;
+          }
+        }
+      }
+
+      // Update group visual feedback
       if (foundGroup !== dropTargetGroup) {
         // Remove highlight from previous group
         if (dropTargetGroup) {
@@ -2402,10 +2479,14 @@ function setupCanvasDragAndDrop() {
     if (draggedElement) {
       draggedElement.style.opacity = '1';
 
-      // Remove drop target highlight
+      // Remove drop target highlights
       if (dropTargetGroup) {
         const groupEl = workspace.querySelector(`[data-group-id="${dropTargetGroup}"]`);
         if (groupEl) groupEl.classList.remove('drop-target');
+      }
+      if (dropTargetTab) {
+        const tabEl = workspace.querySelector(`[data-tab-id="${dropTargetTab}"]`);
+        if (tabEl) tabEl.classList.remove('drop-target-parent');
       }
 
       const workspaceRect = workspace.getBoundingClientRect();
@@ -2432,18 +2513,66 @@ function setupCanvasDragAndDrop() {
         const tabWidth = 230;
         const tabHeight = 60;
 
-        // Update tab position (store in canvas coordinates, not screen coordinates)
-        canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
+        // Check if tab was dropped onto another tab to create parent-child relationship
+        let droppedOnTab = false;
+        const draggedTabId = parseInt(draggedId);
 
-        // Push away any overlapping elements
-        pushAwayOverlaps('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight);
+        for (const [otherId, pos] of Object.entries(canvasData.positions)) {
+          const otherTabId = parseInt(otherId);
+          if (otherTabId === draggedTabId) continue; // Skip self
+          if (!tabsData[otherTabId] || !tabsData[otherTabId].active) continue; // Skip closed tabs
 
-        // Check if tab was dropped into a group
-        for (const [groupId, group] of Object.entries(canvasData.groups)) {
-          if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
-            // Add tab to this group
-            addTabToGroup(parseInt(draggedId), groupId);
+          const otherRect = {
+            x: pos.x,
+            y: pos.y,
+            width: tabWidth,
+            height: tabHeight
+          };
+
+          const draggedRect = {
+            x: snappedX,
+            y: snappedY,
+            width: tabWidth,
+            height: tabHeight
+          };
+
+          // Check if dropped on this tab (center point overlap)
+          const draggedCenterX = snappedX + tabWidth / 2;
+          const draggedCenterY = snappedY + tabHeight / 2;
+
+          if (draggedCenterX >= otherRect.x &&
+              draggedCenterX <= otherRect.x + otherRect.width &&
+              draggedCenterY >= otherRect.y &&
+              draggedCenterY <= otherRect.y + otherRect.height) {
+
+            // Make the dragged tab a child of the target tab
+            const canMakeChild = await makeTabChild(draggedTabId, otherTabId);
+            if (canMakeChild) {
+              droppedOnTab = true;
+              // Visual feedback: position near parent
+              canvasData.positions[draggedId] = {
+                x: pos.x + 20,
+                y: pos.y + 80
+              };
+            }
             break;
+          }
+        }
+
+        if (!droppedOnTab) {
+          // Update tab position (store in canvas coordinates, not screen coordinates)
+          canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
+
+          // Push away any overlapping elements
+          pushAwayOverlaps('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight);
+
+          // Check if tab was dropped into a group
+          for (const [groupId, group] of Object.entries(canvasData.groups)) {
+            if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
+              // Add tab to this group
+              addTabToGroup(parseInt(draggedId), groupId);
+              break;
+            }
           }
         }
       } else if (draggedType === 'group') {
@@ -2488,6 +2617,7 @@ function setupCanvasDragAndDrop() {
       draggedId = null;
       originalPosition = null;
       dropTargetGroup = null;
+      dropTargetTab = null;
     }
   });
 }

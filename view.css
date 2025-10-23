@@ -442,6 +442,20 @@ button.active:hover {
   box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.3);
 }
 
+.canvas-tab.drop-target-parent {
+  box-shadow: 0 0 0 3px #27ae60;
+  animation: pulse-parent 0.5s infinite;
+}
+
+@keyframes pulse-parent {
+  0%, 100% {
+    box-shadow: 0 0 0 3px #27ae60;
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(39, 174, 96, 0.5);
+  }
+}
+
 .canvas-tab.in-group {
   border-width: 3px;
 }
