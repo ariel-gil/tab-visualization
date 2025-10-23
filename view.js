@@ -1020,8 +1020,23 @@ function setupCanvasDragAndDrop() {
       if (draggedType === 'tab') {
         canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
       } else if (draggedType === 'group') {
-        canvasData.groups[draggedId].position.x = snappedX;
-        canvasData.groups[draggedId].position.y = snappedY;
+        const group = canvasData.groups[draggedId];
+
+        // Calculate how much the group moved
+        const deltaX = snappedX - group.position.x;
+        const deltaY = snappedY - group.position.y;
+
+        // Update group position
+        group.position.x = snappedX;
+        group.position.y = snappedY;
+
+        // Move all tabs in the group by the same delta
+        group.tabs.forEach(tabId => {
+          if (canvasData.positions[tabId]) {
+            canvasData.positions[tabId].x += deltaX;
+            canvasData.positions[tabId].y += deltaY;
+          }
+        });
       }
 
       saveCanvasData();
