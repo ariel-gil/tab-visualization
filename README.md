@@ -4,8 +4,10 @@ A Microsoft Edge / Chrome extension that visualizes tab relationships and browsi
 
 ## Features
 
+- **Multiple View Modes**: Tree view (hierarchical relationships), Sequential view (chronological timeline), and Canvas view (2D spatial organization)
 - **Tab Relationship Tracking**: Automatically tracks parent-child relationships when tabs are opened
-- **Tree Visualization**: View your browsing journey as an interactive hierarchical tree
+- **2D Canvas View**: Drag and drop tabs anywhere on a canvas with full X/Y movement
+- **Smart Grouping**: Auto-group tabs by domain or create custom groups
 - **Active/Closed Status**: See which tabs are currently open vs. closed
 - **Search & Filter**: Quickly find tabs by title or URL
 - **Data Export**: Export your tab history as JSON
@@ -123,6 +125,54 @@ Click "Export JSON" to download your entire tab history as a JSON file. Useful f
 
 Click "Clear History" to delete all tracked tabs. This action cannot be undone. Active tabs will be re-tracked immediately.
 
+### Canvas View & Grouping
+
+The Canvas View provides a free-form 2D workspace where you can spatially organize your tabs:
+
+**Navigation:**
+- Switch to Canvas View using the tab selector at the top
+- Drag any tab card to move it anywhere on the canvas (full X/Y movement)
+- Toggle "Grid Snap" to snap tabs to a 20px grid for easier alignment
+
+**Grouping Strategies:**
+
+**Currently Available:**
+
+1. **Manual Grouping** (Best for: 5-20 tabs)
+   - Click "Create Group" to make a new colored group box
+   - Right-click any tab and select "Add to [Group Name]"
+   - Perfect when you know exactly what goes together
+   - Full control over organization
+
+2. **Domain-Based Auto-Grouping** (Best for: Multiple tabs from same sites)
+   - Click "Auto-Group by Domain" in Canvas View
+   - Automatically creates groups for sites with 2+ tabs
+   - Example: 10 GitHub tabs, 8 YouTube tabs → instant organized groups
+   - Tabs from unique domains remain ungrouped
+
+**Future Grouping Ideas (Not Yet Implemented):**
+
+These are potential approaches being considered as the project evolves:
+
+3. **Relationship-Based Grouping** (Concept)
+   - Group tabs based on parent-child relationships already tracked
+   - "This tab and all its children" in one group
+   - "Group this entire browsing journey"
+   - Would leverage existing tree structure data
+
+4. **Session/Time-Based Grouping** (Concept)
+   - "Tabs opened within 5 minutes of each other"
+   - "Tabs from this morning vs afternoon"
+   - Good for: "What was I working on earlier?"
+
+5. **Semantic/AI Grouping** (Concept)
+   - Only useful when you have 50+ tabs from different domains
+   - "These 15 tabs across 8 domains are all about vacation planning"
+   - Could use local LLM or API call
+   - Worth the added complexity when manual grouping becomes overwhelming
+
+**Philosophy:** Manual grouping should stay easy for small sets. Smart grouping is for when you're drowning in tabs and need help making sense of the chaos.
+
 ## Customization
 
 ### Custom Icons
@@ -204,12 +254,15 @@ tab-visualization/
 ## Future Enhancements
 
 Potential features for future versions:
-- Drag-and-drop canvas view for more flexibility
+- ✅ Drag-and-drop canvas view with 2D movement (completed)
+- ✅ Tab grouping with auto-group by domain (completed)
+- Relationship-based auto-grouping using parent-child tree data
 - Tab control (close, move, group tabs directly from visualizer)
-- Session management (save and restore browsing sessions)
+- Enhanced session management (save and restore with canvas layouts)
 - Statistics and analytics
 - Visual themes
 - Keyboard shortcuts
+- Semantic/AI-powered grouping for large tab sets
 
 ## Privacy
 

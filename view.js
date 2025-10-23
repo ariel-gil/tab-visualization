@@ -637,15 +637,38 @@ function autoGroupByDomain() {
       const groupName = domain.split('.')[0].charAt(0).toUpperCase() +
                        domain.split('.')[0].slice(1);
 
+      // Calculate group size based on number of tabs
+      // Arrange tabs in 2 columns within the group
+      const tabsPerRow = 2;
+      const tabWidth = 230;
+      const tabHeight = 70;
+      const padding = 15;
+      const headerHeight = 35;
+
+      const rows = Math.ceil(tabIds.length / tabsPerRow);
+      const groupWidth = (tabsPerRow * tabWidth) + ((tabsPerRow + 1) * padding);
+      const groupHeight = headerHeight + (rows * tabHeight) + ((rows + 1) * padding);
+
       canvasData.groups[groupId] = {
         id: groupId,
         name: groupName,
         color: color,
         tabs: tabIds,
-        position: { x: 50, y: yOffset, width: 300, height: 200 }
+        position: { x: 50, y: yOffset, width: groupWidth, height: groupHeight }
       };
 
-      yOffset += 250; // Stack groups vertically
+      // Position tabs inside the group in a grid layout
+      tabIds.forEach((tabId, index) => {
+        const row = Math.floor(index / tabsPerRow);
+        const col = index % tabsPerRow;
+
+        const tabX = 50 + padding + (col * (tabWidth + padding));
+        const tabY = yOffset + headerHeight + padding + (row * (tabHeight + padding));
+
+        canvasData.positions[tabId] = { x: tabX, y: tabY };
+      });
+
+      yOffset += groupHeight + 30; // Stack groups vertically with spacing
       groupIndex++;
     }
   });
@@ -750,11 +773,17 @@ function renderCanvasTab(tab) {
   const isCurrentTab = tab.id === currentActiveTabId && tab.active;
 
   // Check if tab is in a group
-  const inGroup = Object.values(canvasData.groups).some(g => g.tabs.includes(tab.id));
+  const groupInfo = Object.values(canvasData.groups).find(g => g.tabs.includes(tab.id));
+  const inGroup = !!groupInfo;
 
-  tabDiv.className = `canvas-tab ${tab.active ? 'active' : 'inactive'} ${isCurrentTab ? 'current-active' : ''}`;
+  tabDiv.className = `canvas-tab ${tab.active ? 'active' : 'inactive'} ${isCurrentTab ? 'current-active' : ''} ${inGroup ? 'in-group' : ''}`;
   tabDiv.dataset.tabId = tab.id;
   tabDiv.draggable = true;
+
+  // Add visual indicator if in group
+  if (inGroup) {
+    tabDiv.style.borderColor = groupInfo.color;
+  }
 
   // Get position from saved data or generate default position
   let position = canvasData.positions[tab.id];
