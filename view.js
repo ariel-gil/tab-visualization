@@ -911,14 +911,23 @@ function createNewGroup() {
 
 // Auto-group tabs by domain
 function autoGroupByDomain() {
-  if (!confirm('This will create groups based on website domains and rearrange all tabs. Continue?')) return;
+  if (!confirm('This will create groups based on website domains for ungrouped tabs. Manually created groups will be preserved. Continue?')) return;
 
-  // Clear existing groups and positions for a fresh layout
-  canvasData.groups = {};
-  canvasData.positions = {};
+  // Keep track of existing manual groups and their tabs
+  const manualGroups = {};
+  const tabsInManualGroups = new Set();
 
-  // Get active tabs
-  const activeTabs = Object.values(tabsData).filter(tab => tab.active);
+  Object.entries(canvasData.groups).forEach(([groupId, group]) => {
+    // Consider a group "manual" if it doesn't match the auto-group naming pattern
+    // Auto-groups are named like "Github", "Youtube", etc. (capitalized domain)
+    manualGroups[groupId] = group;
+    group.tabs.forEach(tabId => tabsInManualGroups.add(tabId));
+  });
+
+  // Get active tabs that are NOT in manual groups
+  const activeTabs = Object.values(tabsData).filter(tab =>
+    tab.active && !tabsInManualGroups.has(tab.id)
+  );
 
   // Group tabs by domain
   const domainMap = {};
@@ -936,10 +945,21 @@ function autoGroupByDomain() {
     }
   });
 
+  // Start with existing manual groups
+  const newGroups = { ...manualGroups };
+
+  // Find the starting Y offset (below manual groups)
+  let yOffset = 50;
+  Object.values(manualGroups).forEach(group => {
+    const groupBottom = group.position.y + group.position.height;
+    if (groupBottom + 30 > yOffset) {
+      yOffset = groupBottom + 30;
+    }
+  });
+
   // Create groups for domains with 2+ tabs
   const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
-  let groupIndex = 0;
-  let yOffset = 50;
+  let groupIndex = Object.keys(manualGroups).length; // Start color index after manual groups
 
   Object.entries(domainMap).forEach(([domain, tabIds]) => {
     if (tabIds.length >= 2) {
@@ -964,7 +984,7 @@ function autoGroupByDomain() {
       const groupWidth = (tabsPerRow * tabWidth) + ((tabsPerRow + 1) * padding);
       const groupHeight = headerHeight + (rows * tabHeight) + ((rows + 1) * padding);
 
-      canvasData.groups[groupId] = {
+      newGroups[groupId] = {
         id: groupId,
         name: groupName,
         color: color,
@@ -973,7 +993,6 @@ function autoGroupByDomain() {
       };
 
       // Position tabs inside the group in a grid layout
-      // Only reposition tabs if they don't have existing positions
       tabIds.forEach((tabId, index) => {
         const row = Math.floor(index / tabsPerRow);
         const col = index % tabsPerRow;
@@ -981,7 +1000,6 @@ function autoGroupByDomain() {
         const tabX = 50 + padding + (col * (tabWidth + padding));
         const tabY = yOffset + headerHeight + padding + (row * (tabHeight + padding));
 
-        // Always update position when auto-grouping to place tabs inside the group
         canvasData.positions[tabId] = { x: tabX, y: tabY };
       });
 
@@ -990,7 +1008,7 @@ function autoGroupByDomain() {
     }
   });
 
-  // Position ungrouped tabs (tabs not in any group) to the right
+  // Position ungrouped tabs (tabs not in any group including manual ones) to the right
   let ungroupedX = 600; // Start to the right of grouped tabs
   let ungroupedY = 50;
   const ungroupedTabWidth = 230;
@@ -998,14 +1016,17 @@ function autoGroupByDomain() {
   const ungroupedPadding = 15;
   const ungroupedPerColumn = 8;
 
-  activeTabs.forEach(tab => {
-    // Check if tab is in a group
-    const inAnyGroup = Object.values(canvasData.groups).some(g => g.tabs.includes(tab.id));
+  // Get all tabs (including those we didn't process because they're in manual groups)
+  const allActiveTabs = Object.values(tabsData).filter(tab => tab.active);
+
+  allActiveTabs.forEach(tab => {
+    // Check if tab is in ANY group (manual or auto)
+    const inAnyGroup = Object.values(newGroups).some(g => g.tabs.includes(tab.id));
 
     if (!inAnyGroup && !canvasData.positions[tab.id]) {
       // Position ungrouped tab
       const index = Object.keys(canvasData.positions).filter(id =>
-        !Object.values(canvasData.groups).some(g => g.tabs.includes(parseInt(id)))
+        !Object.values(newGroups).some(g => g.tabs.includes(parseInt(id)))
       ).length;
 
       const row = index % ungroupedPerColumn;
@@ -1018,11 +1039,15 @@ function autoGroupByDomain() {
     }
   });
 
+  // Update groups with preserved manual groups + new auto groups
+  canvasData.groups = newGroups;
+
   saveCanvasData();
   render();
 
-  const groupCount = Object.keys(canvasData.groups).length;
-  alert(`Created ${groupCount} group(s) based on domains. Tabs with unique domains remain ungrouped.`);
+  const newGroupCount = Object.keys(newGroups).length - Object.keys(manualGroups).length;
+  const manualGroupCount = Object.keys(manualGroups).length;
+  alert(`Created ${newGroupCount} new auto-group(s) based on domains.\n${manualGroupCount} manual group(s) preserved.\nTabs with unique domains remain ungrouped.`);
 }
 
 // Delete a group (but keep the tabs)
@@ -1653,28 +1678,42 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
         height: group.position.height
       };
       if (checkCollision(newRect, groupRect)) {
-        // Push the group away
+        // Calculate minimal push distance
         const pushDirection = getPushDirection(newRect, groupRect);
-        const pushDistance = Math.max(groupRect.width, groupRect.height) + 30;
+        let pushDistance;
+
+        if (pushDirection === 'right' || pushDirection === 'left') {
+          const overlapX = (newRect.x + newRect.width) - groupRect.x;
+          pushDistance = Math.max(overlapX + 30, 100);
+        } else {
+          const overlapY = (newRect.y + newRect.height) - groupRect.y;
+          pushDistance = Math.max(overlapY + 30, 100);
+        }
+
+        let newGroupX = group.position.x;
+        let newGroupY = group.position.y;
 
         if (pushDirection === 'right') {
-          group.position.x += pushDistance;
+          newGroupX += pushDistance;
         } else if (pushDirection === 'left') {
-          group.position.x -= pushDistance;
+          newGroupX = Math.max(minX, group.position.x - pushDistance);
         } else if (pushDirection === 'down') {
-          group.position.y += pushDistance;
+          newGroupY += pushDistance;
         } else if (pushDirection === 'up') {
-          group.position.y -= pushDistance;
+          newGroupY = Math.max(minY, group.position.y - pushDistance);
         }
+
+        // Calculate delta and move group
+        const deltaX = newGroupX - group.position.x;
+        const deltaY = newGroupY - group.position.y;
+        group.position.x = newGroupX;
+        group.position.y = newGroupY;
 
         // Move all tabs in the group
         group.tabs.forEach(tabId => {
           if (canvasData.positions[tabId]) {
-            if (pushDirection === 'right' || pushDirection === 'left') {
-              canvasData.positions[tabId].x += (pushDirection === 'right' ? pushDistance : -pushDistance);
-            } else {
-              canvasData.positions[tabId].y += (pushDirection === 'down' ? pushDistance : -pushDistance);
-            }
+            canvasData.positions[tabId].x += deltaX;
+            canvasData.positions[tabId].y += deltaY;
           }
         });
       }
@@ -1691,28 +1730,42 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
         height: otherGroup.position.height
       };
       if (checkCollision(newRect, otherRect)) {
-        // Push the other group away
+        // Calculate minimal push distance
         const pushDirection = getPushDirection(newRect, otherRect);
-        const pushDistance = Math.max(newRect.width, otherRect.width) + 30;
+        let pushDistance;
+
+        if (pushDirection === 'right' || pushDirection === 'left') {
+          const overlapX = (newRect.x + newRect.width) - otherRect.x;
+          pushDistance = Math.max(overlapX + 30, 100);
+        } else {
+          const overlapY = (newRect.y + newRect.height) - otherRect.y;
+          pushDistance = Math.max(overlapY + 30, 100);
+        }
+
+        let newGroupX = otherGroup.position.x;
+        let newGroupY = otherGroup.position.y;
 
         if (pushDirection === 'right') {
-          otherGroup.position.x += pushDistance;
+          newGroupX += pushDistance;
         } else if (pushDirection === 'left') {
-          otherGroup.position.x -= pushDistance;
+          newGroupX = Math.max(minX, otherGroup.position.x - pushDistance);
         } else if (pushDirection === 'down') {
-          otherGroup.position.y += pushDistance;
+          newGroupY += pushDistance;
         } else if (pushDirection === 'up') {
-          otherGroup.position.y -= pushDistance;
+          newGroupY = Math.max(minY, otherGroup.position.y - pushDistance);
         }
+
+        // Calculate delta and move group
+        const deltaX = newGroupX - otherGroup.position.x;
+        const deltaY = newGroupY - otherGroup.position.y;
+        otherGroup.position.x = newGroupX;
+        otherGroup.position.y = newGroupY;
 
         // Move all tabs in the pushed group
         otherGroup.tabs.forEach(tabId => {
           if (canvasData.positions[tabId]) {
-            if (pushDirection === 'right' || pushDirection === 'left') {
-              canvasData.positions[tabId].x += (pushDirection === 'right' ? pushDistance : -pushDistance);
-            } else {
-              canvasData.positions[tabId].y += (pushDirection === 'down' ? pushDistance : -pushDistance);
-            }
+            canvasData.positions[tabId].x += deltaX;
+            canvasData.positions[tabId].y += deltaY;
           }
         });
       }
@@ -1730,22 +1783,36 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
 
       const tabRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
       if (checkCollision(newRect, tabRect)) {
-        // Push the tab away
+        // Calculate minimal push distance
         const pushDirection = getPushDirection(newRect, tabRect);
-        const pushDistance = tabWidth + 20;
+        let pushDistance;
 
-        if (pushDirection === 'right') {
-          pos.x += pushDistance;
-        } else if (pushDirection === 'left') {
-          pos.x -= pushDistance;
-        } else if (pushDirection === 'down') {
-          pos.y += pushDistance;
-        } else if (pushDirection === 'up') {
-          pos.y -= pushDistance;
+        if (pushDirection === 'right' || pushDirection === 'left') {
+          const overlapX = (newRect.x + newRect.width) - tabRect.x;
+          pushDistance = Math.max(overlapX + 20, 50);
+        } else {
+          const overlapY = (newRect.y + newRect.height) - tabRect.y;
+          pushDistance = Math.max(overlapY + 20, 50);
         }
 
+        let newPosX = pos.x;
+        let newPosY = pos.y;
+
+        if (pushDirection === 'right') {
+          newPosX = pos.x + pushDistance;
+        } else if (pushDirection === 'left') {
+          newPosX = Math.max(minX, pos.x - pushDistance);
+        } else if (pushDirection === 'down') {
+          newPosY = pos.y + pushDistance;
+        } else if (pushDirection === 'up') {
+          newPosY = Math.max(minY, pos.y - pushDistance);
+        }
+
+        pos.x = Math.max(minX, newPosX);
+        pos.y = Math.max(minY, newPosY);
+
         // Recursively push anything that now overlaps
-        pushAwayOverlaps('tab', tabId, pos.x, pos.y, tabWidth, tabHeight);
+        pushAwayOverlaps('tab', tabId, pos.x, pos.y, tabWidth, tabHeight, depth + 1);
       }
     }
   }
