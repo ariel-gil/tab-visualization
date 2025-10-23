@@ -28,8 +28,6 @@ let draggedType = null; // 'tab' or 'group'
 let draggedId = null; // ID of dragged element
 let originalPosition = null; // Original position before dragging (for collision revert)
 let dropTargetGroup = null; // Group that tab is being dragged over
-let hideChildren = false; // Whether to hide child tabs in canvas view
-let expandedParents = new Set(); // Set of parent tab IDs that are expanded in canvas view
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('canvasViewBtn').addEventListener('click', () => switchViewMode('canvas'));
   document.getElementById('sortOrderSelect').addEventListener('change', handleSortChange);
   document.getElementById('gridSnapToggle').addEventListener('change', handleGridSnapToggle);
-  document.getElementById('hideChildrenToggle').addEventListener('change', handleHideChildrenToggle);
   document.getElementById('selectionModeBtn').addEventListener('click', toggleSelectionMode);
   document.getElementById('darkModeBtn').addEventListener('click', toggleDarkMode);
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
@@ -131,11 +128,9 @@ function switchViewMode(mode) {
 
   // Show/hide canvas-specific controls
   const gridSnapLabel = document.getElementById('gridSnapToggleLabel');
-  const hideChildrenLabel = document.getElementById('hideChildrenToggleLabel');
   const createGroupBtn = document.getElementById('createGroupBtn');
   const autoGroupBtn = document.getElementById('autoGroupBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
-  hideChildrenLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
@@ -847,26 +842,6 @@ function handleGridSnapToggle(event) {
   gridSnapEnabled = event.target.checked;
 }
 
-// Handle hide children toggle
-function handleHideChildrenToggle(event) {
-  hideChildren = event.target.checked;
-  if (!hideChildren) {
-    // When showing all tabs again, clear expanded state
-    expandedParents.clear();
-  }
-  render();
-}
-
-// Toggle expand/collapse for a parent tab in canvas view
-function toggleParentExpand(parentId) {
-  if (expandedParents.has(parentId)) {
-    expandedParents.delete(parentId);
-  } else {
-    expandedParents.add(parentId);
-  }
-  render();
-}
-
 // Get all child tab IDs for a given parent (recursively)
 function getAllChildren(parentId) {
   const children = new Set();
@@ -902,12 +877,32 @@ function createNewGroup() {
   const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
   const color = colors[Object.keys(canvasData.groups).length % colors.length];
 
+  // Find an empty position that doesn't collide with existing elements
+  const groupWidth = 300;
+  const groupHeight = 200;
+  let foundPosition = false;
+  let x = 50;
+  let y = 50;
+
+  // Try positions in a grid pattern until we find an empty spot
+  for (let row = 0; row < 20 && !foundPosition; row++) {
+    for (let col = 0; col < 10 && !foundPosition; col++) {
+      x = 50 + (col * 350); // 350 = groupWidth + 50px spacing
+      y = 50 + (row * 250); // 250 = groupHeight + 50px spacing
+
+      // Check if this position collides with anything
+      if (!wouldCollide('group', groupId, x, y, groupWidth, groupHeight)) {
+        foundPosition = true;
+      }
+    }
+  }
+
   canvasData.groups[groupId] = {
     id: groupId,
     name: groupName,
     color: color,
     tabs: [],
-    position: { x: 100, y: 100, width: 300, height: 200 }
+    position: { x, y, width: groupWidth, height: groupHeight }
   };
 
   saveCanvasData();
@@ -1083,28 +1078,6 @@ function renderCanvas() {
     });
   }
 
-  // Filter by hide children setting
-  if (hideChildren) {
-    // Build a set of all children that should be hidden
-    const hiddenChildren = new Set();
-
-    tabsArray.forEach(tab => {
-      if (tab.parentId && !expandedParents.has(tab.parentId)) {
-        // This tab has a parent and the parent is not expanded
-        hiddenChildren.add(tab.id);
-      }
-    });
-
-    // Also hide descendants of hidden children
-    const allHidden = new Set(hiddenChildren);
-    hiddenChildren.forEach(childId => {
-      const descendants = getAllChildren(childId);
-      descendants.forEach(descId => allHidden.add(descId));
-    });
-
-    tabsArray = tabsArray.filter(tab => !allHidden.has(tab.id));
-  }
-
   if (tabsArray.length === 0) {
     container.innerHTML = '<p class="empty-state">No tabs found. Try a different search or open some tabs!</p>';
     return;
@@ -1186,33 +1159,16 @@ function renderCanvasTab(tab) {
   if (tabHasChildren) {
     const childrenDot = document.createElement('div');
     childrenDot.className = 'canvas-tab-children-dot';
+    childrenDot.classList.add('expandable');
 
-    // Show different states based on hideChildren toggle
-    if (hideChildren) {
-      // Show expandable arrow when hide children is ON
-      const isExpanded = expandedParents.has(tab.id);
-      childrenDot.textContent = isExpanded ? '▼' : '▶';
-      childrenDot.classList.add('expandable');
-      childrenDot.title = isExpanded ? 'Click to collapse children' : 'Click to expand children';
-      childrenDot.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleParentExpand(tab.id);
-      });
-    } else {
-      // Show clickable dot when hide children is OFF
-      childrenDot.textContent = '●';
-      const childCount = getAllChildren(tab.id).size;
-      childrenDot.title = `Has ${childCount} child tab(s). Click to hide children.`;
-      childrenDot.classList.add('expandable');
-      childrenDot.addEventListener('click', (e) => {
-        e.stopPropagation();
-        // Enable hide children mode and expand this parent
-        hideChildren = true;
-        document.getElementById('hideChildrenToggle').checked = true;
-        expandedParents.add(tab.id);
-        render();
-      });
-    }
+    const childCount = getAllChildren(tab.id).size;
+    childrenDot.textContent = '●';
+    childrenDot.title = `Has ${childCount} child tab(s). Click to view.`;
+
+    childrenDot.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showChildrenPopup(tab.id, e.clientX, e.clientY);
+    });
 
     headerDiv.appendChild(childrenDot);
   }
@@ -1320,6 +1276,117 @@ function renderCanvasGroup(group) {
   return groupDiv;
 }
 
+// Show children popup in canvas view
+function showChildrenPopup(parentId, x, y) {
+  // Remove existing popup
+  const existing = document.querySelector('.canvas-children-popup');
+  if (existing) existing.remove();
+
+  // Get all children recursively
+  const children = [];
+  const collectChildren = (tabId, depth = 0) => {
+    Object.values(tabsData).forEach(tab => {
+      if (tab.parentId === tabId) {
+        children.push({ tab, depth });
+        collectChildren(tab.id, depth + 1);
+      }
+    });
+  };
+  collectChildren(parentId);
+
+  if (children.length === 0) return;
+
+  const popup = document.createElement('div');
+  popup.className = 'canvas-children-popup';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'canvas-children-popup-header';
+  header.textContent = `Children (${children.length})`;
+  popup.appendChild(header);
+
+  // Children list
+  children.forEach(({ tab, depth }) => {
+    const item = document.createElement('div');
+    item.className = `canvas-children-popup-item ${tab.active ? 'active' : 'inactive'}`;
+    item.style.paddingLeft = (10 + depth * 15) + 'px';
+
+    // Favicon
+    if (tab.favIconUrl) {
+      const favicon = document.createElement('img');
+      favicon.className = 'popup-favicon';
+      favicon.src = tab.favIconUrl;
+      favicon.onerror = () => { favicon.style.display = 'none'; };
+      item.appendChild(favicon);
+    }
+
+    // Title
+    const title = document.createElement('span');
+    title.className = 'popup-title';
+    title.textContent = tab.title;
+    item.appendChild(title);
+
+    // Status
+    const status = document.createElement('span');
+    status.className = `popup-status ${tab.active ? 'active' : 'closed'}`;
+    status.textContent = tab.active ? 'Active' : 'Closed';
+    item.appendChild(status);
+
+    // Click to navigate to tab
+    if (tab.active) {
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', async () => {
+        try {
+          const tabInfo = await chrome.tabs.get(tab.id);
+          await chrome.windows.update(tabInfo.windowId, { focused: true });
+          await chrome.tabs.update(tab.id, { active: true });
+          currentActiveTabId = tab.id;
+          popup.remove();
+          render();
+        } catch (error) {
+          console.error('Failed to switch to tab:', error);
+          popup.remove();
+          loadAndRender();
+        }
+      });
+    }
+
+    popup.appendChild(item);
+  });
+
+  document.body.appendChild(popup);
+
+  // Position the popup, making sure it doesn't go off-screen
+  const popupRect = popup.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  let finalX = x;
+  let finalY = y;
+
+  // Adjust horizontal position if popup goes off right edge
+  if (x + popupRect.width > viewportWidth) {
+    finalX = viewportWidth - popupRect.width - 10;
+  }
+
+  // Adjust vertical position if popup goes off bottom edge
+  if (y + popupRect.height > viewportHeight) {
+    finalY = viewportHeight - popupRect.height - 10;
+  }
+
+  // Make sure popup doesn't go off top or left edges
+  finalX = Math.max(10, finalX);
+  finalY = Math.max(10, finalY);
+
+  popup.style.left = finalX + 'px';
+  popup.style.top = finalY + 'px';
+
+  // Close popup on click outside
+  setTimeout(() => {
+    document.addEventListener('click', () => popup.remove(), { once: true });
+  }, 0);
+}
+
 // Show context menu for tab
 function showTabContextMenu(tabId, x, y) {
   // Remove existing context menu
@@ -1328,8 +1395,6 @@ function showTabContextMenu(tabId, x, y) {
 
   const menu = document.createElement('div');
   menu.className = 'canvas-context-menu';
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
 
   // Check if tab is in a group
   const currentGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(tabId));
@@ -1348,6 +1413,24 @@ function showTabContextMenu(tabId, x, y) {
     // Option to add to groups
     const groups = Object.values(canvasData.groups);
     if (groups.length > 0) {
+      // Add search input if there are many groups
+      if (groups.length > 5) {
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = 'Search groups...';
+        searchInput.className = 'canvas-context-menu-search';
+        searchInput.onclick = (e) => e.stopPropagation();
+        searchInput.oninput = (e) => {
+          const searchTerm = e.target.value.toLowerCase();
+          const items = menu.querySelectorAll('.canvas-context-menu-item');
+          items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            item.style.display = text.includes(searchTerm) ? 'block' : 'none';
+          });
+        };
+        menu.appendChild(searchInput);
+      }
+
       groups.forEach(group => {
         const addItem = document.createElement('div');
         addItem.className = 'canvas-context-menu-item';
@@ -1367,6 +1450,31 @@ function showTabContextMenu(tabId, x, y) {
   }
 
   document.body.appendChild(menu);
+
+  // Position the menu, making sure it doesn't go off-screen
+  const menuRect = menu.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  let finalX = x;
+  let finalY = y;
+
+  // Adjust horizontal position if menu goes off right edge
+  if (x + menuRect.width > viewportWidth) {
+    finalX = viewportWidth - menuRect.width - 10;
+  }
+
+  // Adjust vertical position if menu goes off bottom edge
+  if (y + menuRect.height > viewportHeight) {
+    finalY = viewportHeight - menuRect.height - 10;
+  }
+
+  // Make sure menu doesn't go off top or left edges
+  finalX = Math.max(10, finalX);
+  finalY = Math.max(10, finalY);
+
+  menu.style.left = finalX + 'px';
+  menu.style.top = finalY + 'px';
 
   // Close menu on click outside
   setTimeout(() => {
