@@ -1133,6 +1133,28 @@ body.dark-mode .popup-status.closed {
   display: none;
 }
 
+/* Dark mode for fullscreen controls */
+body.dark-mode .fullscreen-controls-panel {
+  background: #2d2d2d;
+  color: #e0e0e0;
+}
+
+body.dark-mode .fullscreen-controls-header {
+  border-bottom-color: #444;
+}
+
+body.dark-mode .fullscreen-controls-title {
+  color: #e0e0e0;
+}
+
+body.dark-mode .fullscreen-controls-close {
+  color: #aaa;
+}
+
+body.dark-mode .fullscreen-controls-close:hover {
+  color: #fff;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container {
