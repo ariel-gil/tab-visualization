@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
+  document.getElementById('syncFromBrowserBtn').addEventListener('click', syncFromBrowser);
   document.getElementById('saveSessionBtn').addEventListener('click', saveSession);
   document.getElementById('loadSessionBtn').addEventListener('click', () => {
     document.getElementById('sessionFileInput').click();
@@ -786,9 +787,49 @@ function loadSession(event) {
   event.target.value = '';
 }
 
+// Sync tabs from browser (reload currently open tabs)
+async function syncFromBrowser() {
+  if (!confirm('Import all currently open tabs from browser?\n\nThis will add any tabs that aren\'t already tracked.')) {
+    return;
+  }
+
+  // Get all currently open tabs
+  const browserTabs = await chrome.tabs.query({});
+
+  let addedCount = 0;
+
+  // Add each tab if it doesn't already exist
+  for (const tab of browserTabs) {
+    if (!tabsData[tab.id]) {
+      // New tab - add it
+      tabsData[tab.id] = {
+        id: tab.id,
+        title: tab.title,
+        url: tab.url,
+        parentId: tab.openerTabId || null,
+        timestamp: Date.now(),
+        active: true,
+        favIconUrl: tab.favIconUrl
+      };
+      addedCount++;
+    } else {
+      // Existing tab - update its active status
+      tabsData[tab.id].active = true;
+    }
+  }
+
+  // Save to storage
+  await chrome.storage.local.set({ tabs: tabsData });
+
+  // Reload view
+  await loadAndRender();
+
+  alert(`Synced with browser!\n${addedCount} new tab(s) added.`);
+}
+
 // Clear all history
 async function clearHistory() {
-  if (!confirm('Are you sure you want to clear all tab history? This cannot be undone.')) {
+  if (!confirm('Are you sure you want to clear all tab history? This cannot be undone.\n\nTip: Use "Sync from Browser" to reload currently open tabs.')) {
     return;
   }
 
