@@ -49,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sessionFileInput').click();
   });
   document.getElementById('sessionFileInput').addEventListener('change', loadSession);
-  document.getElementById('exportBtn').addEventListener('click', exportData);
   document.getElementById('clearBtn').addEventListener('click', clearHistory);
 
   // Load and display tabs
@@ -666,12 +665,14 @@ function updateStats() {
   document.getElementById('closedTabs').textContent = `Closed: ${closedTabs}`;
 }
 
-// Save session to file
+// Save session to file (includes tabs, canvas layout, and groups)
 function saveSession() {
   const sessionData = {
     timestamp: Date.now(),
     date: new Date().toISOString(),
-    tabs: tabsData
+    tabs: tabsData,
+    canvasData: canvasData,
+    darkMode: darkMode
   };
 
   const dataStr = JSON.stringify(sessionData, null, 2);
@@ -687,7 +688,7 @@ function saveSession() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  console.log('Session saved');
+  console.log('Session saved (tabs + canvas layout + groups + preferences)');
 }
 
 // Load session from file
@@ -718,14 +719,33 @@ function loadSession(event) {
         // Merge: keep existing tabs and add session tabs
         const mergedTabs = { ...sessionData.tabs, ...tabsData };
         await chrome.storage.local.set({ tabs: mergedTabs });
+
+        // Merge canvas data if available
+        if (sessionData.canvasData) {
+          const mergedCanvasData = {
+            positions: { ...canvasData.positions, ...sessionData.canvasData.positions },
+            groups: { ...canvasData.groups, ...sessionData.canvasData.groups }
+          };
+          await chrome.storage.local.set({ canvasData: mergedCanvasData });
+        }
       } else {
-        // Replace: use only session tabs
+        // Replace: use only session data
         await chrome.storage.local.set({ tabs: sessionData.tabs });
+
+        // Replace canvas data if available
+        if (sessionData.canvasData) {
+          await chrome.storage.local.set({ canvasData: sessionData.canvasData });
+        }
+
+        // Restore dark mode preference if available
+        if (sessionData.darkMode !== undefined) {
+          await chrome.storage.local.set({ darkMode: sessionData.darkMode });
+        }
       }
 
       // Reload the view
       await loadAndRender();
-      console.log('Session loaded');
+      console.log('Session loaded (tabs + canvas layout + groups + preferences)');
     } catch (error) {
       console.error('Failed to load session:', error);
       alert('Failed to load session file. Make sure it\'s a valid JSON file.');
@@ -736,21 +756,6 @@ function loadSession(event) {
 
   // Reset file input so the same file can be loaded again
   event.target.value = '';
-}
-
-// Export data as JSON
-function exportData() {
-  const dataStr = JSON.stringify(tabsData, null, 2);
-  const blob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `tab-journey-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 // Clear all history
