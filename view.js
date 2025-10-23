@@ -1077,9 +1077,23 @@ function addTabToGroup(tabId, groupId) {
 
 // Remove tab from group
 function removeTabFromGroup(tabId) {
+  // Find which group the tab is in
+  const currentGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(tabId));
+
+  // Remove from all groups
   Object.values(canvasData.groups).forEach(group => {
     group.tabs = group.tabs.filter(id => id !== tabId);
   });
+
+  // Move tab outside the group
+  if (currentGroup && canvasData.positions[tabId]) {
+    // Position the tab to the right of the group with some offset
+    const newX = currentGroup.position.x + currentGroup.position.width + 30;
+    const newY = currentGroup.position.y;
+
+    canvasData.positions[tabId] = { x: newX, y: newY };
+  }
+
   saveCanvasData();
   render();
 }
@@ -1087,6 +1101,15 @@ function removeTabFromGroup(tabId) {
 // Render canvas view
 function renderCanvas() {
   const container = document.getElementById('treeContainer');
+
+  // Save scroll position before clearing
+  const existingWorkspace = document.getElementById('canvasWorkspace');
+  let savedScrollLeft = 0;
+  let savedScrollTop = 0;
+  if (existingWorkspace) {
+    savedScrollLeft = existingWorkspace.scrollLeft;
+    savedScrollTop = existingWorkspace.scrollTop;
+  }
 
   // Get tabs as array
   let tabsArray = Object.values(tabsData);
@@ -1133,6 +1156,12 @@ function renderCanvas() {
   });
 
   container.appendChild(canvasWorkspace);
+
+  // Restore scroll position
+  if (savedScrollLeft > 0 || savedScrollTop > 0) {
+    canvasWorkspace.scrollLeft = savedScrollLeft;
+    canvasWorkspace.scrollTop = savedScrollTop;
+  }
 
   // Set up drag and drop event listeners
   setupCanvasDragAndDrop();
