@@ -1270,12 +1270,19 @@ function showTabContextMenu(tabId, x, y) {
 
 // Check if two rectangles overlap
 function checkCollision(rect1, rect2) {
-  return !(
+  const noOverlap = (
     rect1.x + rect1.width <= rect2.x ||
     rect1.x >= rect2.x + rect2.width ||
     rect1.y + rect1.height <= rect2.y ||
     rect1.y >= rect2.y + rect2.height
   );
+
+  const overlaps = !noOverlap;
+  if (overlaps) {
+    console.log('Rectangles overlap:', rect1, rect2);
+  }
+
+  return overlaps;
 }
 
 // Check if a point/rectangle is inside a group
@@ -1467,13 +1474,16 @@ function setupCanvasDragAndDrop() {
         const tabWidth = 230;
         const tabHeight = 60;
 
+        console.log(`Checking collision for tab ${draggedId} at (${snappedX}, ${snappedY})`);
+
         // Check for collision
         if (wouldCollide('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight)) {
           // Collision detected - revert to original position
-          console.log('Collision detected, reverting position');
+          console.log('Collision detected, reverting position to', originalPosition);
           canvasData.positions[draggedId] = originalPosition;
         } else {
           // No collision - update position
+          console.log('No collision, updating position');
           canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
 
           // Check if tab was dropped into a group
