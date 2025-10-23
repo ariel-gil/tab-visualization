@@ -824,13 +824,24 @@ async function syncFromBrowser() {
 
 // Clear all history
 async function clearHistory() {
-  if (!confirm('Are you sure you want to clear all tab history? This cannot be undone.\n\nTip: Use "Sync from Browser" to reload currently open tabs.')) {
+  if (!confirm('Are you sure you want to clear all tab history and groups? This cannot be undone.\n\nTip: Use "Sync from Browser" to reload currently open tabs.')) {
     return;
   }
 
+  // Clear tabs
   await chrome.storage.local.set({ tabs: {} });
   tabsData = {};
+
+  // Clear canvas data (groups and positions)
+  canvasData = {
+    positions: {},
+    groups: {}
+  };
+  await chrome.storage.local.set({ canvasData });
+
+  // Clear other state
   collapsedNodes.clear();
+
   render();
   updateStats();
 }
@@ -918,8 +929,6 @@ function autoGroupByDomain() {
   const tabsInManualGroups = new Set();
 
   Object.entries(canvasData.groups).forEach(([groupId, group]) => {
-    // Consider a group "manual" if it doesn't match the auto-group naming pattern
-    // Auto-groups are named like "Github", "Youtube", etc. (capitalized domain)
     manualGroups[groupId] = group;
     group.tabs.forEach(tabId => tabsInManualGroups.add(tabId));
   });
@@ -928,6 +937,16 @@ function autoGroupByDomain() {
   const activeTabs = Object.values(tabsData).filter(tab =>
     tab.active && !tabsInManualGroups.has(tab.id)
   );
+
+  // Clear positions ONLY for tabs not in manual groups (so we can reposition them)
+  const newPositions = {};
+  // Preserve positions of tabs in manual groups
+  Object.entries(canvasData.positions).forEach(([tabId, pos]) => {
+    if (tabsInManualGroups.has(parseInt(tabId))) {
+      newPositions[tabId] = pos;
+    }
+  });
+  canvasData.positions = newPositions;
 
   // Group tabs by domain
   const domainMap = {};
@@ -2026,24 +2045,66 @@ function setupCanvasDragAndDrop() {
         const tabWidth = 230;
         const tabHeight = 60;
 
+        // Save all positions before making changes
+        const savedPositions = JSON.parse(JSON.stringify(canvasData.positions));
+        const savedGroupPositions = {};
+        Object.entries(canvasData.groups).forEach(([id, group]) => {
+          savedGroupPositions[id] = { ...group.position };
+        });
+
         // Update tab position
         canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
 
         // Push away any overlapping elements
         pushAwayOverlaps('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight);
 
-        // Check if tab was dropped into a group
-        let addedToGroup = false;
-        for (const [groupId, group] of Object.entries(canvasData.groups)) {
-          if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
-            // Add tab to this group
-            addTabToGroup(parseInt(draggedId), groupId);
-            addedToGroup = true;
+        // Check if any element went off-screen (too far right or down)
+        const maxReasonableX = 3000; // Maximum reasonable X position
+        const maxReasonableY = 3000; // Maximum reasonable Y position
+        let wentOffScreen = false;
+
+        for (const [tabId, pos] of Object.entries(canvasData.positions)) {
+          if (pos.x > maxReasonableX || pos.y > maxReasonableY) {
+            wentOffScreen = true;
             break;
+          }
+        }
+
+        if (!wentOffScreen) {
+          for (const group of Object.values(canvasData.groups)) {
+            if (group.position.x > maxReasonableX || group.position.y > maxReasonableY) {
+              wentOffScreen = true;
+              break;
+            }
+          }
+        }
+
+        if (wentOffScreen) {
+          // Revert all positions
+          canvasData.positions = savedPositions;
+          Object.entries(savedGroupPositions).forEach(([id, pos]) => {
+            canvasData.groups[id].position = pos;
+          });
+          console.log('Drag cancelled: would push elements too far off-screen');
+        } else {
+          // Check if tab was dropped into a group
+          for (const [groupId, group] of Object.entries(canvasData.groups)) {
+            if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
+              // Add tab to this group
+              addTabToGroup(parseInt(draggedId), groupId);
+              break;
+            }
           }
         }
       } else if (draggedType === 'group') {
         const group = canvasData.groups[draggedId];
+
+        // Save all positions before making changes
+        const savedPositions = JSON.parse(JSON.stringify(canvasData.positions));
+        const savedGroupPositions = {};
+        Object.entries(canvasData.groups).forEach(([id, g]) => {
+          savedGroupPositions[id] = { ...g.position };
+        });
 
         // Calculate how much the group moved
         const deltaX = snappedX - group.position.x;
@@ -2063,6 +2124,36 @@ function setupCanvasDragAndDrop() {
 
         // Push away any overlapping elements
         pushAwayOverlaps('group', draggedId, snappedX, snappedY, group.position.width, group.position.height);
+
+        // Check if any element went off-screen (too far right or down)
+        const maxReasonableX = 3000;
+        const maxReasonableY = 3000;
+        let wentOffScreen = false;
+
+        for (const [tabId, pos] of Object.entries(canvasData.positions)) {
+          if (pos.x > maxReasonableX || pos.y > maxReasonableY) {
+            wentOffScreen = true;
+            break;
+          }
+        }
+
+        if (!wentOffScreen) {
+          for (const g of Object.values(canvasData.groups)) {
+            if (g.position.x > maxReasonableX || g.position.y > maxReasonableY) {
+              wentOffScreen = true;
+              break;
+            }
+          }
+        }
+
+        if (wentOffScreen) {
+          // Revert all positions
+          canvasData.positions = savedPositions;
+          Object.entries(savedGroupPositions).forEach(([id, pos]) => {
+            canvasData.groups[id].position = pos;
+          });
+          console.log('Drag cancelled: would push elements too far off-screen');
+        }
       }
 
       saveCanvasData();
