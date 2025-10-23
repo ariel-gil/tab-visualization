@@ -712,32 +712,54 @@ function loadSession(event) {
         return;
       }
 
-      // Ask user if they want to merge or replace
-      const merge = confirm(
-        'Load session:\n\n' +
-        'OK = Merge with current tabs\n' +
-        'Cancel = Replace current tabs\n\n' +
+      // Get currently active tabs from browser
+      const currentBrowserTabs = await chrome.tabs.query({});
+      const currentBrowserTabIds = new Set(currentBrowserTabs.map(t => t.id));
+
+      // Ask user what to import
+      const choice = confirm(
+        'Import session data:\n\n' +
+        'OK = Import parent-child relationships only (sync with current tabs)\n' +
+        'Cancel = Import everything (may show closed tabs)\n\n' +
         `Session from: ${new Date(sessionData.timestamp).toLocaleString()}`
       );
 
-      if (merge) {
-        // Merge: keep existing tabs and add session tabs
-        const mergedTabs = { ...sessionData.tabs, ...tabsData };
-        await chrome.storage.local.set({ tabs: mergedTabs });
+      if (choice) {
+        // Import parent-child relationships only
+        // Match by URL between session and current tabs
+        const currentTabsByUrl = {};
+        currentBrowserTabs.forEach(tab => {
+          currentTabsByUrl[tab.url] = tab.id;
+        });
 
-        // Merge canvas data if available
-        if (sessionData.canvasData) {
-          const mergedCanvasData = {
-            positions: { ...canvasData.positions, ...sessionData.canvasData.positions },
-            groups: { ...canvasData.groups, ...sessionData.canvasData.groups }
-          };
-          await chrome.storage.local.set({ canvasData: mergedCanvasData });
-        }
+        // Update parent relationships for currently open tabs
+        Object.values(sessionData.tabs).forEach(sessionTab => {
+          const currentTabId = currentTabsByUrl[sessionTab.url];
+          if (currentTabId && tabsData[currentTabId]) {
+            // Tab is currently open - update its parent relationship
+            if (sessionTab.parentId) {
+              // Find the parent in current tabs by URL
+              const parentSessionTab = sessionData.tabs[sessionTab.parentId];
+              if (parentSessionTab) {
+                const currentParentId = currentTabsByUrl[parentSessionTab.url];
+                if (currentParentId) {
+                  tabsData[currentTabId].parentId = currentParentId;
+                }
+              }
+            }
+          }
+        });
+
+        await chrome.storage.local.set({ tabs: tabsData });
+
+        // Don't import canvas data in sync mode
+        console.log('Session parent-child relationships imported and synced with current tabs');
+        alert('Parent-child relationships imported and synced with currently open tabs!');
       } else {
-        // Replace: use only session data
+        // Import everything as-is
         await chrome.storage.local.set({ tabs: sessionData.tabs });
 
-        // Replace canvas data if available
+        // Import canvas data if available
         if (sessionData.canvasData) {
           await chrome.storage.local.set({ canvasData: sessionData.canvasData });
         }
@@ -746,11 +768,12 @@ function loadSession(event) {
         if (sessionData.darkMode !== undefined) {
           await chrome.storage.local.set({ darkMode: sessionData.darkMode });
         }
+
+        console.log('Full session imported (may include closed tabs)');
       }
 
       // Reload the view
       await loadAndRender();
-      console.log('Session loaded (tabs + canvas layout + groups + preferences)');
     } catch (error) {
       console.error('Failed to load session:', error);
       alert('Failed to load session file. Make sure it\'s a valid JSON file.');
