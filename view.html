@@ -63,6 +63,22 @@
     <div id="treeContainer" class="tree-container">
       <p class="empty-state">No tabs tracked yet. Open some tabs to see the journey!</p>
     </div>
+
+    <!-- Fullscreen minimizer (only visible in fullscreen mode) -->
+    <div class="fullscreen-minimizer">
+      <div class="fullscreen-minimizer-dot" id="fullscreenMinimizerDot" title="Show controls">
+        ⚙️
+      </div>
+      <div class="fullscreen-controls-panel" id="fullscreenControlsPanel">
+        <div class="fullscreen-controls-header">
+          <span class="fullscreen-controls-title">Controls</span>
+          <button class="fullscreen-controls-close" id="fullscreenControlsClose">×</button>
+        </div>
+        <div class="fullscreen-controls-content" id="fullscreenControlsContent">
+          <!-- Controls will be cloned here by JavaScript -->
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="view.js"></script>

@@ -45,6 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('clearAutoGroupsBtn').addEventListener('click', clearAutoGroups);
   document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
+  document.getElementById('fullscreenMinimizerDot').addEventListener('click', showFullscreenControls);
+  document.getElementById('fullscreenControlsClose').addEventListener('click', hideFullscreenControls);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
   document.getElementById('syncFromBrowserBtn').addEventListener('click', syncFromBrowser);
   document.getElementById('saveSessionBtn').addEventListener('click', saveSession);
@@ -187,6 +189,7 @@ function toggleFullscreen() {
     container.requestFullscreen().then(() => {
       container.classList.add('fullscreen-mode');
       document.getElementById('fullscreenBtn').textContent = '⛶ Exit Fullscreen';
+      populateFullscreenControls();
     }).catch((err) => {
       console.error('Failed to enter fullscreen:', err);
     });
@@ -199,6 +202,57 @@ function toggleFullscreen() {
   }
 }
 
+// Populate fullscreen controls panel with cloned controls
+function populateFullscreenControls() {
+  const controlsContent = document.getElementById('fullscreenControlsContent');
+  const originalControls = document.querySelector('.controls .button-group');
+
+  // Clear existing content
+  controlsContent.innerHTML = '';
+
+  // Clone all buttons and controls
+  const buttons = originalControls.querySelectorAll('button, label');
+  buttons.forEach(element => {
+    const clone = element.cloneNode(true);
+
+    // Re-attach event listeners to cloned elements
+    if (element.id) {
+      const originalElement = document.getElementById(element.id);
+      clone.addEventListener('click', () => {
+        originalElement.click();
+        // Close the panel after clicking a button (except for toggles)
+        if (!clone.classList.contains('toggle-label')) {
+          hideFullscreenControls();
+        }
+      });
+
+      // For checkboxes in labels, sync the state
+      if (clone.querySelector('input[type="checkbox"]')) {
+        const clonedCheckbox = clone.querySelector('input[type="checkbox"]');
+        const originalCheckbox = originalElement.querySelector('input[type="checkbox"]');
+        clonedCheckbox.addEventListener('change', () => {
+          originalCheckbox.checked = clonedCheckbox.checked;
+          originalCheckbox.dispatchEvent(new Event('change'));
+        });
+      }
+    }
+
+    controlsContent.appendChild(clone);
+  });
+}
+
+// Show fullscreen controls panel
+function showFullscreenControls() {
+  const panel = document.getElementById('fullscreenControlsPanel');
+  panel.classList.add('visible');
+}
+
+// Hide fullscreen controls panel
+function hideFullscreenControls() {
+  const panel = document.getElementById('fullscreenControlsPanel');
+  panel.classList.remove('visible');
+}
+
 // Listen for fullscreen changes (ESC key)
 document.addEventListener('fullscreenchange', () => {
   const container = document.querySelector('.container');
@@ -207,6 +261,7 @@ document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement) {
     container.classList.remove('fullscreen-mode');
     if (btn) btn.textContent = '⛶ Fullscreen';
+    hideFullscreenControls();
   }
 });
 
