@@ -8,6 +8,13 @@ let collapsedNodes = new Set(); // Track which nodes are collapsed
 let viewMode = 'tree'; // 'tree', 'sequential', or 'canvas'
 let sortOrder = 'newest'; // 'newest' or 'oldest'
 
+// Tree view selection mode
+let selectionMode = false; // Whether multi-select mode is active
+let selectedTabs = new Set(); // Set of selected tab IDs
+
+// Dark mode
+let darkMode = false; // Whether dark mode is enabled
+
 // Canvas view data
 let canvasData = {
   positions: {}, // { tabId: { x, y } }
@@ -32,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('canvasViewBtn').addEventListener('click', () => switchViewMode('canvas'));
   document.getElementById('sortOrderSelect').addEventListener('change', handleSortChange);
   document.getElementById('gridSnapToggle').addEventListener('change', handleGridSnapToggle);
+  document.getElementById('selectionModeBtn').addEventListener('click', toggleSelectionMode);
+  document.getElementById('darkModeBtn').addEventListener('click', toggleDarkMode);
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
@@ -72,12 +81,19 @@ async function getCurrentActiveTab() {
 
 // Load tab data from storage and render the view
 async function loadAndRender() {
-  const { tabs = {}, canvasData: savedCanvasData = null } = await chrome.storage.local.get(['tabs', 'canvasData']);
+  const { tabs = {}, canvasData: savedCanvasData = null, darkMode: savedDarkMode = false } = await chrome.storage.local.get(['tabs', 'canvasData', 'darkMode']);
   tabsData = tabs;
 
   // Load canvas data if available
   if (savedCanvasData) {
     canvasData = savedCanvasData;
+  }
+
+  // Load dark mode preference
+  darkMode = savedDarkMode;
+  if (darkMode) {
+    document.body.classList.add('dark-mode');
+    document.getElementById('darkModeBtn').textContent = '☀️';
   }
 
   await getCurrentActiveTab();
@@ -118,6 +134,18 @@ function switchViewMode(mode) {
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
+  // Show/hide tree-specific controls
+  const selectionModeBtn = document.getElementById('selectionModeBtn');
+  selectionModeBtn.style.display = mode === 'tree' ? 'block' : 'none';
+
+  // Reset selection mode when switching views
+  if (mode !== 'tree' && selectionMode) {
+    selectionMode = false;
+    selectedTabs.clear();
+    selectionModeBtn.classList.remove('active');
+    selectionModeBtn.textContent = 'Multi-Select Mode';
+  }
+
   render();
 }
 
@@ -125,6 +153,152 @@ function switchViewMode(mode) {
 function handleSortChange(event) {
   sortOrder = event.target.value;
   render();
+}
+
+// Toggle dark mode
+async function toggleDarkMode() {
+  darkMode = !darkMode;
+  const btn = document.getElementById('darkModeBtn');
+
+  if (darkMode) {
+    document.body.classList.add('dark-mode');
+    btn.textContent = '☀️';
+  } else {
+    document.body.classList.remove('dark-mode');
+    btn.textContent = '🌙';
+  }
+
+  // Save preference to storage
+  await chrome.storage.local.set({ darkMode });
+}
+
+// Toggle selection mode in tree view
+function toggleSelectionMode() {
+  selectionMode = !selectionMode;
+  const btn = document.getElementById('selectionModeBtn');
+
+  if (selectionMode) {
+    btn.classList.add('active');
+    btn.textContent = 'Exit Selection Mode';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = 'Multi-Select Mode';
+    selectedTabs.clear();
+  }
+
+  render();
+}
+
+// Handle tab selection (checkbox click)
+function handleTabSelection(tabId, event) {
+  event.stopPropagation();
+
+  if (selectedTabs.has(tabId)) {
+    selectedTabs.delete(tabId);
+  } else {
+    selectedTabs.add(tabId);
+  }
+
+  render();
+}
+
+// Make selected tabs children of target tab
+async function makeTabsChildren(parentId) {
+  if (selectedTabs.size === 0) return;
+
+  // Don't allow a tab to be its own parent
+  if (selectedTabs.has(parentId)) {
+    alert('Cannot make a tab its own child!');
+    return;
+  }
+
+  // Check for circular relationships (parent becoming child of its descendant)
+  const descendants = new Set();
+  const collectDescendants = (tabId) => {
+    if (!tabsData[tabId]) return;
+    Object.values(tabsData).forEach(tab => {
+      if (tab.parentId === tabId) {
+        descendants.add(tab.id);
+        collectDescendants(tab.id);
+      }
+    });
+  };
+  collectDescendants(parentId);
+
+  for (const selectedId of selectedTabs) {
+    if (descendants.has(selectedId)) {
+      alert('Cannot create circular parent-child relationships!');
+      return;
+    }
+  }
+
+  // Update parent relationships
+  selectedTabs.forEach(tabId => {
+    if (tabsData[tabId]) {
+      tabsData[tabId].parentId = parentId;
+    }
+  });
+
+  // Save to storage
+  await chrome.storage.local.set({ tabs: tabsData });
+
+  // Clear selection and exit selection mode
+  selectedTabs.clear();
+  selectionMode = false;
+  const btn = document.getElementById('selectionModeBtn');
+  btn.classList.remove('active');
+  btn.textContent = 'Multi-Select Mode';
+
+  // Reload and render
+  await loadAndRender();
+}
+
+// Tree drag-and-drop handlers
+function handleTreeDragStart(e, tabId) {
+  if (selectedTabs.size === 0) {
+    e.preventDefault();
+    return;
+  }
+
+  e.stopPropagation();
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', tabId);
+
+  // Visual feedback
+  e.target.style.opacity = '0.5';
+}
+
+function handleTreeDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+
+  // Add visual feedback to drop target
+  const node = e.currentTarget;
+  if (!node.classList.contains('drag-over')) {
+    node.classList.add('drag-over');
+  }
+}
+
+function handleTreeDragLeave(e) {
+  e.stopPropagation();
+  const node = e.currentTarget;
+  node.classList.remove('drag-over');
+}
+
+async function handleTreeDrop(e, targetTabId) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Remove visual feedback
+  const node = e.currentTarget;
+  node.classList.remove('drag-over');
+
+  // Reset opacity of dragged elements
+  document.querySelectorAll('.tree-node').forEach(n => n.style.opacity = '1');
+
+  // Make selected tabs children of target
+  await makeTabsChildren(targetTabId);
 }
 
 // Main render function - delegates to tree, sequential, or canvas view
@@ -207,8 +381,19 @@ function renderNode(node, isRoot = false) {
   const isCurrentTab = node.id === currentActiveTabId && node.active;
   const hasChildren = node.children && node.children.length > 0;
   const isCollapsed = collapsedNodes.has(node.id);
+  const isSelected = selectedTabs.has(node.id);
 
-  nodeDiv.className = `tree-node ${node.active ? 'active' : 'inactive'} ${isRoot ? 'root' : ''} ${isCurrentTab ? 'current-active' : ''} ${isCollapsed ? 'collapsed' : ''}`;
+  nodeDiv.className = `tree-node ${node.active ? 'active' : 'inactive'} ${isRoot ? 'root' : ''} ${isCurrentTab ? 'current-active' : ''} ${isCollapsed ? 'collapsed' : ''} ${isSelected ? 'selected' : ''}`;
+  nodeDiv.dataset.tabId = node.id;
+
+  // Make node draggable and droppable in selection mode
+  if (selectionMode) {
+    nodeDiv.draggable = selectedTabs.size > 0;
+    nodeDiv.ondragstart = (e) => handleTreeDragStart(e, node.id);
+    nodeDiv.ondragover = (e) => handleTreeDragOver(e);
+    nodeDiv.ondrop = (e) => handleTreeDrop(e, node.id);
+    nodeDiv.ondragleave = (e) => handleTreeDragLeave(e);
+  }
 
   // Format timestamp
   const time = new Date(node.timestamp).toLocaleString();
@@ -219,6 +404,16 @@ function renderNode(node, isRoot = false) {
   // Build node header HTML
   const headerDiv = document.createElement('div');
   headerDiv.className = 'node-header';
+
+  // Add checkbox in selection mode
+  if (selectionMode) {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'node-checkbox';
+    checkbox.checked = isSelected;
+    checkbox.onclick = (e) => handleTabSelection(node.id, e);
+    headerDiv.appendChild(checkbox);
+  }
 
   // Collapse/expand icon (if has children)
   if (hasChildren) {
@@ -263,6 +458,18 @@ function renderNode(node, isRoot = false) {
 
   headerDiv.appendChild(titleDiv);
 
+  // Timestamp (more compact format)
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'node-time';
+  const shortTime = new Date(node.timestamp).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  timeSpan.textContent = shortTime;
+  headerDiv.appendChild(timeSpan);
+
   // Status badge
   const statusSpan = document.createElement('span');
   statusSpan.className = `node-status ${node.active ? 'active' : 'closed'}`;
@@ -271,14 +478,8 @@ function renderNode(node, isRoot = false) {
 
   nodeDiv.appendChild(headerDiv);
 
-  // Meta info
-  const metaDiv = document.createElement('div');
-  metaDiv.className = 'node-meta';
-  metaDiv.textContent = `Opened: ${time}`;
-  nodeDiv.appendChild(metaDiv);
-
-  // Add click handler for active tabs to jump to them
-  if (node.active) {
+  // Add click handler for active tabs to jump to them (but not in selection mode)
+  if (node.active && !selectionMode) {
     nodeDiv.style.cursor = 'pointer';
     nodeDiv.addEventListener('click', async (event) => {
       // Don't trigger if clicking collapse icon
