@@ -1087,7 +1087,8 @@ function renderCanvasTab(tab) {
   headerDiv.appendChild(dragHandle);
 
   // Children indicator (dot) if tab has children
-  if (hasChildren(tab.id)) {
+  const tabHasChildren = hasChildren(tab.id);
+  if (tabHasChildren) {
     const childrenDot = document.createElement('div');
     childrenDot.className = 'canvas-tab-children-dot';
 
@@ -1097,13 +1098,14 @@ function renderCanvasTab(tab) {
       childrenDot.textContent = isExpanded ? '▼' : '▶';
       childrenDot.classList.add('expandable');
       childrenDot.title = isExpanded ? 'Click to collapse children' : 'Click to expand children';
-      childrenDot.onclick = (e) => {
+      childrenDot.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleParentExpand(tab.id);
-      };
+      });
     } else {
       childrenDot.textContent = '●';
-      childrenDot.title = `Has ${getAllChildren(tab.id).size} child tab(s)`;
+      const childCount = getAllChildren(tab.id).size;
+      childrenDot.title = `Has ${childCount} child tab(s)`;
     }
 
     headerDiv.appendChild(childrenDot);
@@ -1303,19 +1305,24 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
     newRect.height = tabHeight;
 
     // Get which group this tab belongs to (if any)
-    const ownGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(parseInt(id)));
+    const tabIdNum = parseInt(id);
+    const ownGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(tabIdNum));
 
     // Check collision with other tabs (except those in same group)
     for (const [otherId, pos] of Object.entries(canvasData.positions)) {
-      if (otherId === id) continue;
+      if (otherId == id) continue; // Use == for string/number comparison
 
-      const otherGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(parseInt(otherId)));
+      const otherIdNum = parseInt(otherId);
+      const otherGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(otherIdNum));
 
       // Skip collision check if both tabs are in the same group
       if (ownGroup && otherGroup && ownGroup.id === otherGroup.id) continue;
 
       const otherRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
-      if (checkCollision(newRect, otherRect)) return true;
+      if (checkCollision(newRect, otherRect)) {
+        console.log(`Collision detected between tab ${id} and tab ${otherId}`);
+        return true;
+      }
     }
 
     // Check collision with groups (except the one we might be dropping into)
@@ -1331,7 +1338,10 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
         width: group.position.width,
         height: group.position.height
       };
-      if (checkCollision(newRect, groupRect)) return true;
+      if (checkCollision(newRect, groupRect)) {
+        console.log(`Collision detected between tab ${id} and group ${groupId}`);
+        return true;
+      }
     }
   } else if (type === 'group') {
     // Check collision with other groups
@@ -1344,7 +1354,10 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
         width: otherGroup.position.width,
         height: otherGroup.position.height
       };
-      if (checkCollision(newRect, otherRect)) return true;
+      if (checkCollision(newRect, otherRect)) {
+        console.log(`Collision detected between group ${id} and group ${otherId}`);
+        return true;
+      }
     }
   }
 
