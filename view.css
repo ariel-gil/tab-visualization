@@ -470,6 +470,28 @@ button.active:hover {
   cursor: grabbing;
 }
 
+.canvas-tab-children-dot {
+  font-size: 12px;
+  color: #3498db;
+  font-weight: bold;
+  user-select: none;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-tab-children-dot.expandable {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.canvas-tab-children-dot.expandable:hover {
+  background: rgba(52, 152, 219, 0.2);
+}
+
 .canvas-tab-title {
   flex: 1;
   font-weight: 600;
@@ -800,6 +822,14 @@ body.dark-mode .canvas-tab.current-active {
 body.dark-mode .canvas-tab-header {
   background: #3a3a3a;
   border-bottom-color: #4a4a4a;
+}
+
+body.dark-mode .canvas-tab-children-dot {
+  color: #3498db;
+}
+
+body.dark-mode .canvas-tab-children-dot.expandable:hover {
+  background: rgba(52, 152, 219, 0.3);
 }
 
 body.dark-mode .canvas-tab-title {

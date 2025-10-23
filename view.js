@@ -28,6 +28,8 @@ let draggedType = null; // 'tab' or 'group'
 let draggedId = null; // ID of dragged element
 let originalPosition = null; // Original position before dragging (for collision revert)
 let dropTargetGroup = null; // Group that tab is being dragged over
+let hideChildren = false; // Whether to hide child tabs in canvas view
+let expandedParents = new Set(); // Set of parent tab IDs that are expanded in canvas view
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -39,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('canvasViewBtn').addEventListener('click', () => switchViewMode('canvas'));
   document.getElementById('sortOrderSelect').addEventListener('change', handleSortChange);
   document.getElementById('gridSnapToggle').addEventListener('change', handleGridSnapToggle);
+  document.getElementById('hideChildrenToggle').addEventListener('change', handleHideChildrenToggle);
   document.getElementById('selectionModeBtn').addEventListener('click', toggleSelectionMode);
   document.getElementById('darkModeBtn').addEventListener('click', toggleDarkMode);
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
@@ -127,9 +130,11 @@ function switchViewMode(mode) {
 
   // Show/hide canvas-specific controls
   const gridSnapLabel = document.getElementById('gridSnapToggleLabel');
+  const hideChildrenLabel = document.getElementById('hideChildrenToggleLabel');
   const createGroupBtn = document.getElementById('createGroupBtn');
   const autoGroupBtn = document.getElementById('autoGroupBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
+  hideChildrenLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
@@ -778,6 +783,46 @@ function handleGridSnapToggle(event) {
   gridSnapEnabled = event.target.checked;
 }
 
+// Handle hide children toggle
+function handleHideChildrenToggle(event) {
+  hideChildren = event.target.checked;
+  if (!hideChildren) {
+    // When showing all tabs again, clear expanded state
+    expandedParents.clear();
+  }
+  render();
+}
+
+// Toggle expand/collapse for a parent tab in canvas view
+function toggleParentExpand(parentId) {
+  if (expandedParents.has(parentId)) {
+    expandedParents.delete(parentId);
+  } else {
+    expandedParents.add(parentId);
+  }
+  render();
+}
+
+// Get all child tab IDs for a given parent (recursively)
+function getAllChildren(parentId) {
+  const children = new Set();
+  const findChildren = (tabId) => {
+    Object.values(tabsData).forEach(tab => {
+      if (tab.parentId === tabId) {
+        children.add(tab.id);
+        findChildren(tab.id); // Recursive
+      }
+    });
+  };
+  findChildren(parentId);
+  return children;
+}
+
+// Check if a tab has any children
+function hasChildren(tabId) {
+  return Object.values(tabsData).some(tab => tab.parentId === tabId);
+}
+
 // Snap coordinate to grid
 function snapToGrid(value) {
   if (!gridSnapEnabled) return value;
@@ -943,6 +988,28 @@ function renderCanvas() {
     });
   }
 
+  // Filter by hide children setting
+  if (hideChildren) {
+    // Build a set of all children that should be hidden
+    const hiddenChildren = new Set();
+
+    tabsArray.forEach(tab => {
+      if (tab.parentId && !expandedParents.has(tab.parentId)) {
+        // This tab has a parent and the parent is not expanded
+        hiddenChildren.add(tab.id);
+      }
+    });
+
+    // Also hide descendants of hidden children
+    const allHidden = new Set(hiddenChildren);
+    hiddenChildren.forEach(childId => {
+      const descendants = getAllChildren(childId);
+      descendants.forEach(descId => allHidden.add(descId));
+    });
+
+    tabsArray = tabsArray.filter(tab => !allHidden.has(tab.id));
+  }
+
   if (tabsArray.length === 0) {
     container.innerHTML = '<p class="empty-state">No tabs found. Try a different search or open some tabs!</p>';
     return;
@@ -1018,6 +1085,29 @@ function renderCanvasTab(tab) {
   dragHandle.className = 'canvas-tab-drag-handle';
   dragHandle.textContent = '⋮⋮';
   headerDiv.appendChild(dragHandle);
+
+  // Children indicator (dot) if tab has children
+  if (hasChildren(tab.id)) {
+    const childrenDot = document.createElement('div');
+    childrenDot.className = 'canvas-tab-children-dot';
+
+    // Show different states based on expand/collapse
+    if (hideChildren) {
+      const isExpanded = expandedParents.has(tab.id);
+      childrenDot.textContent = isExpanded ? '▼' : '▶';
+      childrenDot.classList.add('expandable');
+      childrenDot.title = isExpanded ? 'Click to collapse children' : 'Click to expand children';
+      childrenDot.onclick = (e) => {
+        e.stopPropagation();
+        toggleParentExpand(tab.id);
+      };
+    } else {
+      childrenDot.textContent = '●';
+      childrenDot.title = `Has ${getAllChildren(tab.id).size} child tab(s)`;
+    }
+
+    headerDiv.appendChild(childrenDot);
+  }
 
   // Favicon
   if (tab.favIconUrl) {
