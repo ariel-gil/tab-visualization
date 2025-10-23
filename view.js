@@ -950,7 +950,7 @@ function autoGroupByDomain() {
       const groupName = domain.split('.')[0].charAt(0).toUpperCase() +
                        domain.split('.')[0].slice(1);
 
-      // Calculate group size based on number of tabs
+      // Calculate group size based on number of ACTIVE tabs only
       // Arrange tabs in 2 columns within the group
       const tabsPerRow = 2;
       const tabWidth = 230;
@@ -958,7 +958,9 @@ function autoGroupByDomain() {
       const padding = 15;
       const headerHeight = 35;
 
-      const rows = Math.ceil(tabIds.length / tabsPerRow);
+      // Only count active tabs for sizing
+      const activeTabIds = tabIds.filter(id => tabsData[id] && tabsData[id].active);
+      const rows = Math.ceil(activeTabIds.length / tabsPerRow);
       const groupWidth = (tabsPerRow * tabWidth) + ((tabsPerRow + 1) * padding);
       const groupHeight = headerHeight + (rows * tabHeight) + ((rows + 1) * padding);
 
@@ -1054,7 +1056,9 @@ function addTabToGroup(tabId, groupId) {
   const padding = 15;
   const headerHeight = 35;
 
-  const index = group.tabs.length - 1; // Index of the newly added tab
+  // Count only active tabs in the group for positioning
+  const activeTabsInGroup = group.tabs.filter(id => tabsData[id] && tabsData[id].active);
+  const index = activeTabsInGroup.length - 1; // Index of the newly added tab
   const row = Math.floor(index / tabsPerRow);
   const col = index % tabsPerRow;
 
@@ -1063,8 +1067,8 @@ function addTabToGroup(tabId, groupId) {
 
   canvasData.positions[tabId] = { x: tabX, y: tabY };
 
-  // Expand group if necessary to fit all tabs
-  const rows = Math.ceil(group.tabs.length / tabsPerRow);
+  // Expand group if necessary to fit all active tabs
+  const rows = Math.ceil(activeTabsInGroup.length / tabsPerRow);
   const minGroupWidth = (tabsPerRow * tabWidth) + ((tabsPerRow + 1) * padding);
   const minGroupHeight = headerHeight + (rows * tabHeight) + ((rows + 1) * padding);
 
@@ -1111,13 +1115,8 @@ function renderCanvas() {
     savedScrollTop = existingWorkspace.scrollTop;
   }
 
-  // Get tabs as array
-  let tabsArray = Object.values(tabsData);
-
-  // Filter by closed tabs toggle
-  if (!showClosedTabs) {
-    tabsArray = tabsArray.filter(tab => tab.active);
-  }
+  // Get tabs as array - ALWAYS filter out closed tabs in canvas view
+  let tabsArray = Object.values(tabsData).filter(tab => tab.active);
 
   // Filter by search term
   if (searchTerm) {
@@ -1306,10 +1305,11 @@ function renderCanvasGroup(group) {
   nameSpan.textContent = group.name;
   headerDiv.appendChild(nameSpan);
 
-  // Tab count
+  // Tab count (only active tabs)
+  const activeTabCount = group.tabs.filter(id => tabsData[id] && tabsData[id].active).length;
   const countSpan = document.createElement('span');
   countSpan.className = 'canvas-group-count';
-  countSpan.textContent = `(${group.tabs.length})`;
+  countSpan.textContent = `(${activeTabCount})`;
   headerDiv.appendChild(countSpan);
 
   // Delete button
@@ -1572,7 +1572,206 @@ function isInsideGroup(x, y, width, height, groupId) {
   );
 }
 
-// Check if a new position would cause a collision
+// Push away overlapping elements to make room for a new position
+function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) {
+  // Limit recursion depth to prevent infinite loops and excessive pushing
+  if (depth > 3) return;
+
+  const newRect = { x: newX, y: newY, width: newWidth, height: newHeight };
+  const tabWidth = 230;
+  const tabHeight = 60;
+  const minX = 20; // Minimum distance from left edge
+  const minY = 20; // Minimum distance from top edge
+
+  if (type === 'tab') {
+    newRect.width = tabWidth;
+    newRect.height = tabHeight;
+
+    // Get which group this tab belongs to (if any)
+    const tabIdNum = parseInt(id);
+    const ownGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(tabIdNum));
+
+    // Check collision with other tabs (except those in same group)
+    for (const [otherId, pos] of Object.entries(canvasData.positions)) {
+      if (otherId == id) continue;
+
+      const otherIdNum = parseInt(otherId);
+      const otherGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(otherIdNum));
+
+      // Skip if both tabs are in the same group
+      if (ownGroup && otherGroup && ownGroup.id === otherGroup.id) continue;
+
+      const otherRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
+      if (checkCollision(newRect, otherRect)) {
+        // Calculate overlap amount to push by minimal distance
+        const pushDirection = getPushDirection(newRect, otherRect);
+
+        let pushDistance;
+        if (pushDirection === 'right' || pushDirection === 'left') {
+          // Calculate exact overlap in X direction
+          const overlapX = (newRect.x + newRect.width) - otherRect.x;
+          pushDistance = Math.max(overlapX + 20, 50); // At least 50px, or overlap + margin
+        } else {
+          // Calculate exact overlap in Y direction
+          const overlapY = (newRect.y + newRect.height) - otherRect.y;
+          pushDistance = Math.max(overlapY + 20, 50);
+        }
+
+        let newPosX = pos.x;
+        let newPosY = pos.y;
+
+        if (pushDirection === 'right') {
+          newPosX = pos.x + pushDistance;
+        } else if (pushDirection === 'left') {
+          newPosX = Math.max(minX, pos.x - pushDistance);
+        } else if (pushDirection === 'down') {
+          newPosY = pos.y + pushDistance;
+        } else if (pushDirection === 'up') {
+          newPosY = Math.max(minY, pos.y - pushDistance);
+        }
+
+        // Ensure element stays on screen
+        pos.x = Math.max(minX, newPosX);
+        pos.y = Math.max(minY, newPosY);
+
+        // Recursively push anything that now overlaps with the moved tab
+        pushAwayOverlaps('tab', otherId, pos.x, pos.y, tabWidth, tabHeight, depth + 1);
+      }
+    }
+
+    // Check collision with groups (except the one we might be dropping into)
+    for (const [groupId, group] of Object.entries(canvasData.groups)) {
+      // If tab is being dropped into this group, allow the overlap
+      if (isInsideGroup(newX, newY, tabWidth, tabHeight, groupId)) {
+        continue;
+      }
+
+      const groupRect = {
+        x: group.position.x,
+        y: group.position.y,
+        width: group.position.width,
+        height: group.position.height
+      };
+      if (checkCollision(newRect, groupRect)) {
+        // Push the group away
+        const pushDirection = getPushDirection(newRect, groupRect);
+        const pushDistance = Math.max(groupRect.width, groupRect.height) + 30;
+
+        if (pushDirection === 'right') {
+          group.position.x += pushDistance;
+        } else if (pushDirection === 'left') {
+          group.position.x -= pushDistance;
+        } else if (pushDirection === 'down') {
+          group.position.y += pushDistance;
+        } else if (pushDirection === 'up') {
+          group.position.y -= pushDistance;
+        }
+
+        // Move all tabs in the group
+        group.tabs.forEach(tabId => {
+          if (canvasData.positions[tabId]) {
+            if (pushDirection === 'right' || pushDirection === 'left') {
+              canvasData.positions[tabId].x += (pushDirection === 'right' ? pushDistance : -pushDistance);
+            } else {
+              canvasData.positions[tabId].y += (pushDirection === 'down' ? pushDistance : -pushDistance);
+            }
+          }
+        });
+      }
+    }
+  } else if (type === 'group') {
+    // Check collision with other groups
+    for (const [otherId, otherGroup] of Object.entries(canvasData.groups)) {
+      if (otherId === id) continue;
+
+      const otherRect = {
+        x: otherGroup.position.x,
+        y: otherGroup.position.y,
+        width: otherGroup.position.width,
+        height: otherGroup.position.height
+      };
+      if (checkCollision(newRect, otherRect)) {
+        // Push the other group away
+        const pushDirection = getPushDirection(newRect, otherRect);
+        const pushDistance = Math.max(newRect.width, otherRect.width) + 30;
+
+        if (pushDirection === 'right') {
+          otherGroup.position.x += pushDistance;
+        } else if (pushDirection === 'left') {
+          otherGroup.position.x -= pushDistance;
+        } else if (pushDirection === 'down') {
+          otherGroup.position.y += pushDistance;
+        } else if (pushDirection === 'up') {
+          otherGroup.position.y -= pushDistance;
+        }
+
+        // Move all tabs in the pushed group
+        otherGroup.tabs.forEach(tabId => {
+          if (canvasData.positions[tabId]) {
+            if (pushDirection === 'right' || pushDirection === 'left') {
+              canvasData.positions[tabId].x += (pushDirection === 'right' ? pushDistance : -pushDistance);
+            } else {
+              canvasData.positions[tabId].y += (pushDirection === 'down' ? pushDistance : -pushDistance);
+            }
+          }
+        });
+      }
+    }
+
+    // Check collision with tabs (that are NOT in this group)
+    const group = canvasData.groups[id];
+    const tabsInGroup = group ? group.tabs : [];
+
+    for (const [tabId, pos] of Object.entries(canvasData.positions)) {
+      const tabIdNum = parseInt(tabId);
+
+      // Skip tabs that are inside this group
+      if (tabsInGroup.includes(tabIdNum)) continue;
+
+      const tabRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
+      if (checkCollision(newRect, tabRect)) {
+        // Push the tab away
+        const pushDirection = getPushDirection(newRect, tabRect);
+        const pushDistance = tabWidth + 20;
+
+        if (pushDirection === 'right') {
+          pos.x += pushDistance;
+        } else if (pushDirection === 'left') {
+          pos.x -= pushDistance;
+        } else if (pushDirection === 'down') {
+          pos.y += pushDistance;
+        } else if (pushDirection === 'up') {
+          pos.y -= pushDistance;
+        }
+
+        // Recursively push anything that now overlaps
+        pushAwayOverlaps('tab', tabId, pos.x, pos.y, tabWidth, tabHeight);
+      }
+    }
+  }
+}
+
+// Determine which direction to push an overlapping element
+function getPushDirection(newRect, otherRect) {
+  // Calculate the center points
+  const newCenterX = newRect.x + newRect.width / 2;
+  const newCenterY = newRect.y + newRect.height / 2;
+  const otherCenterX = otherRect.x + otherRect.width / 2;
+  const otherCenterY = otherRect.y + otherRect.height / 2;
+
+  // Calculate the difference
+  const dx = otherCenterX - newCenterX;
+  const dy = otherCenterY - newCenterY;
+
+  // Push in the direction with the largest difference
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx > 0 ? 'right' : 'left';
+  } else {
+    return dy > 0 ? 'down' : 'up';
+  }
+}
+
+// Check if a new position would cause a collision (used for initial group placement)
 function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
   const newRect = { x: newX, y: newY, width: newWidth, height: newHeight };
 
@@ -1598,7 +1797,6 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
 
       const otherRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
       if (checkCollision(newRect, otherRect)) {
-        console.log(`Collision detected between tab ${id} and tab ${otherId}`);
         return true;
       }
     }
@@ -1617,7 +1815,6 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
         height: group.position.height
       };
       if (checkCollision(newRect, groupRect)) {
-        console.log(`Collision detected between tab ${id} and group ${groupId}`);
         return true;
       }
     }
@@ -1633,7 +1830,6 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
         height: otherGroup.position.height
       };
       if (checkCollision(newRect, otherRect)) {
-        console.log(`Collision detected between group ${id} and group ${otherId}`);
         return true;
       }
     }
@@ -1652,7 +1848,6 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
 
       const tabRect = { x: pos.x, y: pos.y, width: tabWidth, height: tabHeight };
       if (checkCollision(newRect, tabRect)) {
-        console.log(`Collision detected between group ${id} and tab ${tabId}`);
         return true;
       }
     }
@@ -1764,53 +1959,43 @@ function setupCanvasDragAndDrop() {
         const tabWidth = 230;
         const tabHeight = 60;
 
-        console.log(`Checking collision for tab ${draggedId} at (${snappedX}, ${snappedY})`);
+        // Update tab position
+        canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
 
-        // Check for collision
-        if (wouldCollide('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight)) {
-          // Collision detected - revert to original position
-          console.log('Collision detected, reverting position to', originalPosition);
-          canvasData.positions[draggedId] = originalPosition;
-        } else {
-          // No collision - update position
-          console.log('No collision, updating position');
-          canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
+        // Push away any overlapping elements
+        pushAwayOverlaps('tab', draggedId, snappedX, snappedY, tabWidth, tabHeight);
 
-          // Check if tab was dropped into a group
-          for (const [groupId, group] of Object.entries(canvasData.groups)) {
-            if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
-              // Add tab to this group
-              addTabToGroup(parseInt(draggedId), groupId);
-              break;
-            }
+        // Check if tab was dropped into a group
+        let addedToGroup = false;
+        for (const [groupId, group] of Object.entries(canvasData.groups)) {
+          if (isInsideGroup(snappedX, snappedY, tabWidth, tabHeight, groupId)) {
+            // Add tab to this group
+            addTabToGroup(parseInt(draggedId), groupId);
+            addedToGroup = true;
+            break;
           }
         }
       } else if (draggedType === 'group') {
         const group = canvasData.groups[draggedId];
 
-        // Check for collision
-        if (wouldCollide('group', draggedId, snappedX, snappedY, group.position.width, group.position.height)) {
-          // Collision detected - revert to original position
-          console.log('Collision detected, reverting position');
-          group.position.x = originalPosition.x;
-          group.position.y = originalPosition.y;
-        } else {
-          // No collision - calculate how much the group moved
-          const deltaX = snappedX - group.position.x;
-          const deltaY = snappedY - group.position.y;
+        // Calculate how much the group moved
+        const deltaX = snappedX - group.position.x;
+        const deltaY = snappedY - group.position.y;
 
-          // Update group position
-          group.position.x = snappedX;
-          group.position.y = snappedY;
+        // Update group position
+        group.position.x = snappedX;
+        group.position.y = snappedY;
 
-          // Move all tabs in the group by the same delta
-          group.tabs.forEach(tabId => {
-            if (canvasData.positions[tabId]) {
-              canvasData.positions[tabId].x += deltaX;
-              canvasData.positions[tabId].y += deltaY;
-            }
-          });
-        }
+        // Move all tabs in the group by the same delta
+        group.tabs.forEach(tabId => {
+          if (canvasData.positions[tabId]) {
+            canvasData.positions[tabId].x += deltaX;
+            canvasData.positions[tabId].y += deltaY;
+          }
+        });
+
+        // Push away any overlapping elements
+        pushAwayOverlaps('group', draggedId, snappedX, snappedY, group.position.width, group.position.height);
       }
 
       saveCanvasData();
