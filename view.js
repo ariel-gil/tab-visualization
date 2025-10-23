@@ -5,8 +5,20 @@ let searchTerm = ''; // Current search filter
 let showClosedTabs = true; // Toggle for showing closed tabs
 let currentActiveTabId = null; // ID of the currently active tab
 let collapsedNodes = new Set(); // Track which nodes are collapsed
-let viewMode = 'tree'; // 'tree' or 'sequential'
+let viewMode = 'tree'; // 'tree', 'sequential', or 'canvas'
 let sortOrder = 'newest'; // 'newest' or 'oldest'
+
+// Canvas view data
+let canvasData = {
+  positions: {}, // { tabId: { x, y } }
+  groups: {}, // { groupId: { id, name, color, tabs: [tabId], position: { x, y, width, height } } }
+};
+let gridSnapEnabled = true; // Whether to snap to grid
+let gridSize = 20; // Grid size in pixels
+let draggedElement = null; // Currently dragged element
+let dragOffset = { x: 0, y: 0 }; // Offset from mouse to element top-left
+let draggedType = null; // 'tab' or 'group'
+let draggedId = null; // ID of dragged element
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,7 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('showClosedToggle').addEventListener('change', handleClosedToggle);
   document.getElementById('treeViewBtn').addEventListener('click', () => switchViewMode('tree'));
   document.getElementById('sequentialViewBtn').addEventListener('click', () => switchViewMode('sequential'));
+  document.getElementById('canvasViewBtn').addEventListener('click', () => switchViewMode('canvas'));
   document.getElementById('sortOrderSelect').addEventListener('change', handleSortChange);
+  document.getElementById('gridSnapToggle').addEventListener('change', handleGridSnapToggle);
+  document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
   document.getElementById('saveSessionBtn').addEventListener('click', saveSession);
   document.getElementById('loadSessionBtn').addEventListener('click', () => {
@@ -54,8 +69,14 @@ async function getCurrentActiveTab() {
 
 // Load tab data from storage and render the view
 async function loadAndRender() {
-  const { tabs = {} } = await chrome.storage.local.get('tabs');
+  const { tabs = {}, canvasData: savedCanvasData = null } = await chrome.storage.local.get(['tabs', 'canvasData']);
   tabsData = tabs;
+
+  // Load canvas data if available
+  if (savedCanvasData) {
+    canvasData = savedCanvasData;
+  }
+
   await getCurrentActiveTab();
   render();
   updateStats();
@@ -80,10 +101,17 @@ function switchViewMode(mode) {
   // Update active button
   document.getElementById('treeViewBtn').classList.toggle('active', mode === 'tree');
   document.getElementById('sequentialViewBtn').classList.toggle('active', mode === 'sequential');
+  document.getElementById('canvasViewBtn').classList.toggle('active', mode === 'canvas');
 
   // Show/hide sort order dropdown
   const sortSelect = document.getElementById('sortOrderSelect');
   sortSelect.style.display = mode === 'sequential' ? 'block' : 'none';
+
+  // Show/hide canvas-specific controls
+  const gridSnapLabel = document.getElementById('gridSnapToggleLabel');
+  const createGroupBtn = document.getElementById('createGroupBtn');
+  gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
+  createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
   render();
 }
@@ -94,12 +122,14 @@ function handleSortChange(event) {
   render();
 }
 
-// Main render function - delegates to tree or sequential view
+// Main render function - delegates to tree, sequential, or canvas view
 function render() {
   if (viewMode === 'tree') {
     renderTree();
-  } else {
+  } else if (viewMode === 'sequential') {
     renderSequential();
+  } else if (viewMode === 'canvas') {
+    renderCanvas();
   }
 }
 
@@ -528,6 +558,399 @@ async function clearHistory() {
   collapsedNodes.clear();
   render();
   updateStats();
+}
+
+// ===== CANVAS VIEW FUNCTIONS =====
+
+// Handle grid snap toggle
+function handleGridSnapToggle(event) {
+  gridSnapEnabled = event.target.checked;
+}
+
+// Snap coordinate to grid
+function snapToGrid(value) {
+  if (!gridSnapEnabled) return value;
+  return Math.round(value / gridSize) * gridSize;
+}
+
+// Create a new group
+function createNewGroup() {
+  const groupName = prompt('Enter group name:', 'New Group');
+  if (!groupName) return;
+
+  const groupId = 'group_' + Date.now();
+  const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22'];
+  const color = colors[Object.keys(canvasData.groups).length % colors.length];
+
+  canvasData.groups[groupId] = {
+    id: groupId,
+    name: groupName,
+    color: color,
+    tabs: [],
+    position: { x: 100, y: 100, width: 300, height: 200 }
+  };
+
+  saveCanvasData();
+  render();
+}
+
+// Delete a group (but keep the tabs)
+function deleteGroup(groupId) {
+  if (!confirm('Delete this group? Tabs will remain on the canvas.')) return;
+
+  delete canvasData.groups[groupId];
+  saveCanvasData();
+  render();
+}
+
+// Add tab to group
+function addTabToGroup(tabId, groupId) {
+  if (!canvasData.groups[groupId]) return;
+
+  // Remove from other groups first
+  Object.values(canvasData.groups).forEach(group => {
+    group.tabs = group.tabs.filter(id => id !== tabId);
+  });
+
+  // Add to new group
+  canvasData.groups[groupId].tabs.push(tabId);
+  saveCanvasData();
+  render();
+}
+
+// Remove tab from group
+function removeTabFromGroup(tabId) {
+  Object.values(canvasData.groups).forEach(group => {
+    group.tabs = group.tabs.filter(id => id !== tabId);
+  });
+  saveCanvasData();
+  render();
+}
+
+// Render canvas view
+function renderCanvas() {
+  const container = document.getElementById('treeContainer');
+
+  // Get tabs as array
+  let tabsArray = Object.values(tabsData);
+
+  // Filter by closed tabs toggle
+  if (!showClosedTabs) {
+    tabsArray = tabsArray.filter(tab => tab.active);
+  }
+
+  // Filter by search term
+  if (searchTerm) {
+    tabsArray = tabsArray.filter(tab => {
+      return (
+        tab.title.toLowerCase().includes(searchTerm) ||
+        tab.url.toLowerCase().includes(searchTerm)
+      );
+    });
+  }
+
+  if (tabsArray.length === 0) {
+    container.innerHTML = '<p class="empty-state">No tabs found. Try a different search or open some tabs!</p>';
+    return;
+  }
+
+  // Clear container and set up canvas
+  container.innerHTML = '';
+  container.className = 'canvas-container';
+
+  // Create canvas workspace
+  const canvasWorkspace = document.createElement('div');
+  canvasWorkspace.className = 'canvas-workspace';
+  canvasWorkspace.id = 'canvasWorkspace';
+
+  // Render groups first (so tabs render on top)
+  Object.values(canvasData.groups).forEach(group => {
+    const groupElement = renderCanvasGroup(group);
+    canvasWorkspace.appendChild(groupElement);
+  });
+
+  // Render tabs
+  tabsArray.forEach(tab => {
+    const tabElement = renderCanvasTab(tab);
+    canvasWorkspace.appendChild(tabElement);
+  });
+
+  container.appendChild(canvasWorkspace);
+
+  // Set up drag and drop event listeners
+  setupCanvasDragAndDrop();
+}
+
+// Render a single tab in canvas view
+function renderCanvasTab(tab) {
+  const tabDiv = document.createElement('div');
+  const isCurrentTab = tab.id === currentActiveTabId && tab.active;
+
+  // Check if tab is in a group
+  const inGroup = Object.values(canvasData.groups).some(g => g.tabs.includes(tab.id));
+
+  tabDiv.className = `canvas-tab ${tab.active ? 'active' : 'inactive'} ${isCurrentTab ? 'current-active' : ''}`;
+  tabDiv.dataset.tabId = tab.id;
+  tabDiv.draggable = true;
+
+  // Get position from saved data or generate default position
+  let position = canvasData.positions[tab.id];
+  if (!position) {
+    // Auto-layout: place in a grid pattern
+    const index = Object.keys(tabsData).indexOf(tab.id.toString());
+    const cols = 4;
+    position = {
+      x: 20 + (index % cols) * 250,
+      y: 20 + Math.floor(index / cols) * 100
+    };
+    canvasData.positions[tab.id] = position;
+  }
+
+  tabDiv.style.left = position.x + 'px';
+  tabDiv.style.top = position.y + 'px';
+
+  // Build tab content
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'canvas-tab-header';
+
+  // Drag handle
+  const dragHandle = document.createElement('div');
+  dragHandle.className = 'canvas-tab-drag-handle';
+  dragHandle.textContent = '⋮⋮';
+  headerDiv.appendChild(dragHandle);
+
+  // Favicon
+  if (tab.favIconUrl) {
+    const favicon = document.createElement('img');
+    favicon.className = 'node-favicon';
+    favicon.src = tab.favIconUrl;
+    favicon.onerror = () => { favicon.style.display = 'none'; };
+    headerDiv.appendChild(favicon);
+  }
+
+  // Title
+  const titleDiv = document.createElement('div');
+  titleDiv.className = 'canvas-tab-title';
+  titleDiv.textContent = tab.title;
+  headerDiv.appendChild(titleDiv);
+
+  // Status badge
+  const statusSpan = document.createElement('span');
+  statusSpan.className = `node-status ${tab.active ? 'active' : 'closed'}`;
+  statusSpan.textContent = tab.active ? 'Active' : 'Closed';
+  headerDiv.appendChild(statusSpan);
+
+  tabDiv.appendChild(headerDiv);
+
+  // Context menu button
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'canvas-tab-menu-btn';
+  menuBtn.textContent = '⋯';
+  menuBtn.onclick = (e) => {
+    e.stopPropagation();
+    showTabContextMenu(tab.id, e.clientX, e.clientY);
+  };
+  tabDiv.appendChild(menuBtn);
+
+  // Click to activate tab
+  if (tab.active) {
+    tabDiv.style.cursor = 'pointer';
+    tabDiv.addEventListener('click', async (event) => {
+      if (event.target === dragHandle || event.target === menuBtn) return;
+      event.stopPropagation();
+
+      try {
+        const tabInfo = await chrome.tabs.get(tab.id);
+        await chrome.windows.update(tabInfo.windowId, { focused: true });
+        await chrome.tabs.update(tab.id, { active: true });
+        currentActiveTabId = tab.id;
+        render();
+      } catch (error) {
+        console.error('Failed to switch to tab:', error);
+        loadAndRender();
+      }
+    });
+  }
+
+  return tabDiv;
+}
+
+// Render a group in canvas view
+function renderCanvasGroup(group) {
+  const groupDiv = document.createElement('div');
+  groupDiv.className = 'canvas-group';
+  groupDiv.dataset.groupId = group.id;
+  groupDiv.draggable = true;
+
+  const pos = group.position;
+  groupDiv.style.left = pos.x + 'px';
+  groupDiv.style.top = pos.y + 'px';
+  groupDiv.style.width = pos.width + 'px';
+  groupDiv.style.height = pos.height + 'px';
+  groupDiv.style.borderColor = group.color;
+  groupDiv.style.backgroundColor = group.color + '20'; // Add transparency
+
+  // Group header
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'canvas-group-header';
+  headerDiv.style.backgroundColor = group.color;
+
+  // Group name
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'canvas-group-name';
+  nameSpan.textContent = group.name;
+  headerDiv.appendChild(nameSpan);
+
+  // Tab count
+  const countSpan = document.createElement('span');
+  countSpan.className = 'canvas-group-count';
+  countSpan.textContent = `(${group.tabs.length})`;
+  headerDiv.appendChild(countSpan);
+
+  // Delete button
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'canvas-group-delete-btn';
+  deleteBtn.textContent = '✕';
+  deleteBtn.onclick = (e) => {
+    e.stopPropagation();
+    deleteGroup(group.id);
+  };
+  headerDiv.appendChild(deleteBtn);
+
+  groupDiv.appendChild(headerDiv);
+
+  // Resize handle
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'canvas-group-resize-handle';
+  resizeHandle.textContent = '⇲';
+  groupDiv.appendChild(resizeHandle);
+
+  return groupDiv;
+}
+
+// Show context menu for tab
+function showTabContextMenu(tabId, x, y) {
+  // Remove existing context menu
+  const existing = document.querySelector('.canvas-context-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'canvas-context-menu';
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+
+  // Check if tab is in a group
+  const currentGroup = Object.values(canvasData.groups).find(g => g.tabs.includes(tabId));
+
+  if (currentGroup) {
+    // Option to remove from group
+    const removeItem = document.createElement('div');
+    removeItem.className = 'canvas-context-menu-item';
+    removeItem.textContent = 'Remove from group';
+    removeItem.onclick = () => {
+      removeTabFromGroup(tabId);
+      menu.remove();
+    };
+    menu.appendChild(removeItem);
+  } else {
+    // Option to add to groups
+    const groups = Object.values(canvasData.groups);
+    if (groups.length > 0) {
+      groups.forEach(group => {
+        const addItem = document.createElement('div');
+        addItem.className = 'canvas-context-menu-item';
+        addItem.textContent = `Add to "${group.name}"`;
+        addItem.onclick = () => {
+          addTabToGroup(tabId, group.id);
+          menu.remove();
+        };
+        menu.appendChild(addItem);
+      });
+    } else {
+      const noGroupItem = document.createElement('div');
+      noGroupItem.className = 'canvas-context-menu-item disabled';
+      noGroupItem.textContent = 'No groups available';
+      menu.appendChild(noGroupItem);
+    }
+  }
+
+  document.body.appendChild(menu);
+
+  // Close menu on click outside
+  setTimeout(() => {
+    document.addEventListener('click', () => menu.remove(), { once: true });
+  }, 0);
+}
+
+// Set up drag and drop for canvas
+function setupCanvasDragAndDrop() {
+  const workspace = document.getElementById('canvasWorkspace');
+
+  // Drag start
+  workspace.addEventListener('dragstart', (e) => {
+    const target = e.target;
+
+    if (target.classList.contains('canvas-tab')) {
+      draggedType = 'tab';
+      draggedId = target.dataset.tabId;
+      draggedElement = target;
+
+      const rect = target.getBoundingClientRect();
+      const workspaceRect = workspace.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+
+      target.style.opacity = '0.5';
+    } else if (target.classList.contains('canvas-group')) {
+      draggedType = 'group';
+      draggedId = target.dataset.groupId;
+      draggedElement = target;
+
+      const rect = target.getBoundingClientRect();
+      dragOffset.x = e.clientX - rect.left;
+      dragOffset.y = e.clientY - rect.top;
+
+      target.style.opacity = '0.5';
+    }
+  });
+
+  // Drag over
+  workspace.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+
+  // Drag end
+  workspace.addEventListener('dragend', (e) => {
+    if (draggedElement) {
+      draggedElement.style.opacity = '1';
+
+      const workspaceRect = workspace.getBoundingClientRect();
+      const newX = e.clientX - workspaceRect.left - dragOffset.x;
+      const newY = e.clientY - workspaceRect.top - dragOffset.y;
+
+      const snappedX = snapToGrid(newX);
+      const snappedY = snapToGrid(newY);
+
+      if (draggedType === 'tab') {
+        canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
+      } else if (draggedType === 'group') {
+        canvasData.groups[draggedId].position.x = snappedX;
+        canvasData.groups[draggedId].position.y = snappedY;
+      }
+
+      saveCanvasData();
+      render();
+
+      draggedElement = null;
+      draggedType = null;
+      draggedId = null;
+    }
+  });
+}
+
+// Save canvas data to storage
+async function saveCanvasData() {
+  await chrome.storage.local.set({ canvasData });
 }
 
 // Utility function to escape HTML (prevent XSS)

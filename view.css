@@ -347,6 +347,208 @@ button.danger:hover {
   box-shadow: 0 0 0 2px #27ae60;
 }
 
+/* Canvas view styles */
+.canvas-container {
+  background: white;
+  padding: 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  min-height: 600px;
+  overflow: hidden;
+  position: relative;
+}
+
+.canvas-workspace {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  background:
+    linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
+  background-size: 20px 20px;
+  overflow: auto;
+}
+
+/* Canvas tab styles */
+.canvas-tab {
+  position: absolute;
+  width: 230px;
+  min-height: 60px;
+  background: white;
+  border: 2px solid #3498db;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  cursor: move;
+  transition: box-shadow 0.2s, transform 0.1s;
+  z-index: 10;
+}
+
+.canvas-tab:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transform: translateY(-2px);
+}
+
+.canvas-tab.inactive {
+  border-color: #95a5a6;
+  opacity: 0.7;
+}
+
+.canvas-tab.current-active {
+  border-color: #27ae60;
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.3);
+}
+
+.canvas-tab-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8f9fa;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.canvas-tab-drag-handle {
+  cursor: grab;
+  font-size: 12px;
+  color: #7f8c8d;
+  user-select: none;
+  padding: 0 2px;
+}
+
+.canvas-tab-drag-handle:active {
+  cursor: grabbing;
+}
+
+.canvas-tab-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+  color: #2c3e50;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-tab-menu-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  padding: 2px 8px;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  transition: background 0.2s;
+}
+
+.canvas-tab-menu-btn:hover {
+  background: #e0e0e0;
+  transform: none;
+}
+
+/* Canvas group styles */
+.canvas-group {
+  position: absolute;
+  border: 3px solid;
+  border-radius: 12px;
+  z-index: 5;
+  cursor: move;
+  transition: box-shadow 0.2s;
+}
+
+.canvas-group:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+.canvas-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 8px 8px 0 0;
+  color: white;
+  font-weight: 600;
+  user-select: none;
+}
+
+.canvas-group-name {
+  flex: 1;
+  font-size: 14px;
+}
+
+.canvas-group-count {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.canvas-group-delete-btn {
+  padding: 2px 8px;
+  background: rgba(255,255,255,0.2);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.2s;
+}
+
+.canvas-group-delete-btn:hover {
+  background: rgba(255,255,255,0.4);
+  transform: none;
+}
+
+.canvas-group-resize-handle {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  font-size: 16px;
+  color: rgba(0,0,0,0.3);
+  cursor: se-resize;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Context menu styles */
+.canvas-context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 1000;
+  min-width: 180px;
+  padding: 4px 0;
+}
+
+.canvas-context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: background 0.2s;
+}
+
+.canvas-context-menu-item:hover {
+  background: #f0f0f0;
+}
+
+.canvas-context-menu-item.disabled {
+  color: #999;
+  cursor: not-allowed;
+}
+
+.canvas-context-menu-item.disabled:hover {
+  background: transparent;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .container {
@@ -364,5 +566,13 @@ button.danger:hover {
   .stats {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .canvas-tab {
+    width: 200px;
+  }
+
+  .canvas-workspace {
+    height: 500px;
   }
 }

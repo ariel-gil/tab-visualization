@@ -17,6 +17,7 @@
       <div class="view-mode-tabs">
         <button id="treeViewBtn" class="view-tab active">Tree View</button>
         <button id="sequentialViewBtn" class="view-tab">Sequential View</button>
+        <button id="canvasViewBtn" class="view-tab">Canvas View</button>
       </div>
 
       <input type="text" id="searchInput" placeholder="Search tabs by title or URL...">
@@ -32,6 +33,12 @@
           <option value="oldest">Oldest First</option>
         </select>
 
+        <label class="toggle-label" id="gridSnapToggleLabel" style="display: none;">
+          <input type="checkbox" id="gridSnapToggle" checked>
+          Grid Snap
+        </label>
+
+        <button id="createGroupBtn" style="display: none;">Create Group</button>
         <button id="refreshBtn">Refresh</button>
         <button id="saveSessionBtn">Save Session</button>
         <button id="loadSessionBtn">Load Session</button>
