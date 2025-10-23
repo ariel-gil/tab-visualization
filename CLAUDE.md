@@ -47,7 +47,8 @@ Data stored in `chrome.storage.local`:
       parentId: number,    // Parent tab ID (or null for root tabs)
       timestamp: number,   // Creation timestamp
       active: boolean,     // Whether tab is currently open
-      favIconUrl: string   // Favicon URL
+      favIconUrl: string,  // Favicon URL
+      comment: string      // Optional user comment for the tab
     }
   },
 

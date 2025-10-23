@@ -6,17 +6,19 @@ A Microsoft Edge / Chrome extension that visualizes tab relationships and browsi
 
 - **Multiple View Modes**: Tree view (hierarchical relationships), Sequential view (chronological timeline), and Canvas view (2D spatial organization with infinite scrolling)
 - **Tab Relationship Tracking**: Automatically tracks parent-child relationships when tabs are opened
+- **Drag-to-Parent**: In Canvas view, drag a tab onto another to make it a child (with visual feedback)
+- **Tab Comments**: Add notes to any tab via context menu (💬 indicator shows tabs with comments)
 - **Infinite 2D Canvas**: Drag and drop tabs anywhere with automatic push-away of overlapping elements - no boundaries
 - **Smart Grouping**: Auto-group tabs by domain or create custom groups with visual organization
 - **Children Popup**: Click the dot (●) on any parent tab to see all children in a hierarchical popup
-- **Fullscreen Canvas Mode**: Immersive fullscreen view for canvas (press ESC to exit)
+- **Fullscreen Canvas Mode**: Immersive fullscreen view with minimizable controls (press ESC to exit)
 - **Dark Mode**: Built-in dark theme that works on extension pages
 - **Active Tabs Only**: Canvas view shows only open tabs for cleaner organization
 - **Search & Filter**: Quickly find tabs by title or URL with live filtering
 - **Session Management**: Save and load sessions with canvas layouts, groups, and preferences
 - **Multi-Select**: Manually create parent-child relationships in Tree view
 - **Data Export**: Export your tab history as JSON with full canvas state
-- **Persistent Storage**: Tab data, positions, and groups survive browser restarts
+- **Persistent Storage**: Tab data, positions, groups, and comments survive browser restarts
 - **Real-time Updates**: Visualization updates automatically as you browse
 
 ## Installation

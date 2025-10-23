@@ -93,6 +93,10 @@ async function loadAndRender() {
   // Load canvas data if available
   if (savedCanvasData) {
     canvasData = savedCanvasData;
+    // Ensure comments object exists (backwards compatibility)
+    if (!canvasData.comments) {
+      canvasData.comments = {};
+    }
   }
 
   // Load dark mode preference
