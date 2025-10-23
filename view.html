@@ -81,6 +81,16 @@
     </div>
   </div>
 
+  <!-- Utility modules (load first, no dependencies) -->
+  <script src="utils.js"></script>
+
+  <!-- Manager modules (depend on utils and globals) -->
+  <script src="storage-manager.js"></script>
+  <script src="group-manager.js"></script>
+  <script src="comment-manager.js"></script>
+  <script src="popup-utils.js"></script>
+
+  <!-- Main application (depends on all modules) -->
   <script src="view.js"></script>
 </body>
 </html>
