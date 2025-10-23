@@ -398,20 +398,18 @@ button.active:hover {
   padding: 0;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  min-height: 600px;
-  overflow: hidden;
+  height: 600px;
+  overflow: auto;
   position: relative;
 }
 
 .canvas-workspace {
   position: relative;
-  width: 100%;
-  height: 600px;
+  /* Width and height are set dynamically by JavaScript to support infinite canvas */
   background:
     linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px);
   background-size: 20px 20px;
-  overflow: auto;
 }
 
 /* Canvas tab styles */
@@ -1020,12 +1018,6 @@ body.dark-mode .popup-status.closed {
 }
 
 /* Fullscreen mode */
-.container.fullscreen-mode header,
-.container.fullscreen-mode .controls,
-.container.fullscreen-mode .stats {
-  display: none;
-}
-
 .container.fullscreen-mode {
   padding: 0;
   max-width: none;
@@ -1037,6 +1029,108 @@ body.dark-mode .popup-status.closed {
   margin: 0;
   border-radius: 0;
   height: 100vh;
+}
+
+/* Fullscreen controls minimizer */
+.fullscreen-minimizer {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  display: none;
+}
+
+.container.fullscreen-mode .fullscreen-minimizer {
+  display: block;
+}
+
+.fullscreen-minimizer-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(52, 152, 219, 0.9);
+  border: 2px solid white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: all 0.3s;
+}
+
+.fullscreen-minimizer-dot:hover {
+  background: rgba(52, 152, 219, 1);
+  transform: scale(1.1);
+}
+
+.fullscreen-controls-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 16px;
+  z-index: 10000;
+  display: none;
+  max-width: 90vw;
+}
+
+.fullscreen-controls-panel.visible {
+  display: block;
+}
+
+.fullscreen-controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+.fullscreen-controls-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.fullscreen-controls-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+}
+
+.fullscreen-controls-close:hover {
+  color: #333;
+  transform: none;
+}
+
+.fullscreen-controls-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fullscreen-controls-content button,
+.fullscreen-controls-content label,
+.fullscreen-controls-content select {
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+/* Hide original controls in fullscreen */
+.container.fullscreen-mode header,
+.container.fullscreen-mode .controls,
+.container.fullscreen-mode .stats {
+  display: none;
 }
 
 /* Responsive */

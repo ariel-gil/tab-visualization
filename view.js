@@ -1255,13 +1255,17 @@ function renderCanvas() {
     return;
   }
 
+  // INFINITE CANVAS IMPLEMENTATION
   // Calculate bounding box of all elements to support infinite canvas (including negative coordinates)
-  let minX = 0, minY = 0, maxX = 1000, maxY = 1000;
+  // This allows tabs and groups to be positioned anywhere, even at negative X/Y coordinates
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let hasElements = false;
 
-  // Check tab positions
+  // Check tab positions to find the extent of the canvas
   tabsArray.forEach(tab => {
     const pos = canvasData.positions[tab.id];
     if (pos) {
+      hasElements = true;
       minX = Math.min(minX, pos.x);
       minY = Math.min(minY, pos.y);
       maxX = Math.max(maxX, pos.x + 230); // tab width
@@ -1269,9 +1273,10 @@ function renderCanvas() {
     }
   });
 
-  // Check group positions
+  // Check group positions to find the extent of the canvas
   Object.values(canvasData.groups).forEach(group => {
     if (group.position) {
+      hasElements = true;
       minX = Math.min(minX, group.position.x);
       minY = Math.min(minY, group.position.y);
       maxX = Math.max(maxX, group.position.x + group.position.width);
@@ -1279,19 +1284,26 @@ function renderCanvas() {
     }
   });
 
-  // Add padding around the content
-  const padding = 500;
+  // If no elements have positions yet, use default bounds
+  if (!hasElements) {
+    minX = 0;
+    minY = 0;
+    maxX = 1200;
+    maxY = 800;
+  }
+
+  // Add padding around the content so there's always space to drag elements
+  const padding = 200;
   minX -= padding;
   minY -= padding;
   maxX += padding;
   maxY += padding;
 
-  // Calculate offset needed to make all coordinates positive
+  // Calculate offset needed to make all coordinates positive for rendering
+  // Elements store their position in "canvas coordinates" (can be negative)
+  // But CSS positioning requires positive coordinates, so we add an offset
   const offsetX = minX < 0 ? -minX : 0;
   const offsetY = minY < 0 ? -minY : 0;
-
-  // Store the offset in the workspace for later use in drag handlers
-  const workspaceOffset = { x: offsetX, y: offsetY };
 
   // Clear container and set up canvas
   container.innerHTML = '';
@@ -1337,7 +1349,7 @@ function renderCanvas() {
 }
 
 // Render a single tab in canvas view
-function renderCanvasTab(tab) {
+function renderCanvasTab(tab, offsetX = 0, offsetY = 0) {
   const tabDiv = document.createElement('div');
   const isCurrentTab = tab.id === currentActiveTabId && tab.active;
 
@@ -1369,8 +1381,9 @@ function renderCanvasTab(tab) {
     saveCanvasData(); // Persist to storage
   }
 
-  tabDiv.style.left = position.x + 'px';
-  tabDiv.style.top = position.y + 'px';
+  // Apply offset to support negative coordinates in infinite canvas
+  tabDiv.style.left = (position.x + offsetX) + 'px';
+  tabDiv.style.top = (position.y + offsetY) + 'px';
 
   // Build tab content
   const headerDiv = document.createElement('div');
@@ -1452,15 +1465,16 @@ function renderCanvasTab(tab) {
 }
 
 // Render a group in canvas view
-function renderCanvasGroup(group) {
+function renderCanvasGroup(group, offsetX = 0, offsetY = 0) {
   const groupDiv = document.createElement('div');
   groupDiv.className = 'canvas-group';
   groupDiv.dataset.groupId = group.id;
   groupDiv.draggable = true;
 
   const pos = group.position;
-  groupDiv.style.left = pos.x + 'px';
-  groupDiv.style.top = pos.y + 'px';
+  // Apply offset to support negative coordinates in infinite canvas
+  groupDiv.style.left = (pos.x + offsetX) + 'px';
+  groupDiv.style.top = (pos.y + offsetY) + 'px';
   groupDiv.style.width = pos.width + 'px';
   groupDiv.style.height = pos.height + 'px';
   groupDiv.style.borderColor = group.color;
@@ -2078,17 +2092,25 @@ function setupCanvasDragAndDrop() {
     // Highlight group when dragging tab over it
     if (draggedType === 'tab') {
       const workspaceRect = workspace.getBoundingClientRect();
-      const mouseX = e.clientX - workspaceRect.left;
-      const mouseY = e.clientY - workspaceRect.top;
+      const mouseX = e.clientX - workspaceRect.left + workspace.scrollLeft;
+      const mouseY = e.clientY - workspaceRect.top + workspace.scrollTop;
+
+      // Get offset from workspace dataset
+      const offsetX = parseFloat(workspace.dataset.offsetX) || 0;
+      const offsetY = parseFloat(workspace.dataset.offsetY) || 0;
+
+      // Convert mouse position to canvas coordinates (subtract offset)
+      const canvasMouseX = mouseX - offsetX;
+      const canvasMouseY = mouseY - offsetY;
 
       // Check which group (if any) the mouse is over
       let foundGroup = null;
       for (const [groupId, group] of Object.entries(canvasData.groups)) {
         if (
-          mouseX >= group.position.x &&
-          mouseX <= group.position.x + group.position.width &&
-          mouseY >= group.position.y &&
-          mouseY <= group.position.y + group.position.height
+          canvasMouseX >= group.position.x &&
+          canvasMouseX <= group.position.x + group.position.width &&
+          canvasMouseY >= group.position.y &&
+          canvasMouseY <= group.position.y + group.position.height
         ) {
           foundGroup = groupId;
           break;
@@ -2126,17 +2148,30 @@ function setupCanvasDragAndDrop() {
       }
 
       const workspaceRect = workspace.getBoundingClientRect();
-      const newX = e.clientX - workspaceRect.left - dragOffset.x;
-      const newY = e.clientY - workspaceRect.top - dragOffset.y;
 
-      const snappedX = snapToGrid(newX);
-      const snappedY = snapToGrid(newY);
+      // COORDINATE CONVERSION FOR INFINITE CANVAS
+      // Step 1: Get mouse position relative to workspace, accounting for scroll
+      const newX = e.clientX - workspaceRect.left + workspace.scrollLeft - dragOffset.x;
+      const newY = e.clientY - workspaceRect.top + workspace.scrollTop - dragOffset.y;
+
+      // Step 2: Get the offset that was applied to make negative coordinates positive
+      const offsetX = parseFloat(workspace.dataset.offsetX) || 0;
+      const offsetY = parseFloat(workspace.dataset.offsetY) || 0;
+
+      // Step 3: Convert from screen coordinates to canvas coordinates
+      // Subtract offset to get the real position (which may be negative)
+      const canvasX = newX - offsetX;
+      const canvasY = newY - offsetY;
+
+      // Step 4: Apply grid snapping if enabled
+      const snappedX = snapToGrid(canvasX);
+      const snappedY = snapToGrid(canvasY);
 
       if (draggedType === 'tab') {
         const tabWidth = 230;
         const tabHeight = 60;
 
-        // Update tab position
+        // Update tab position (store in canvas coordinates, not screen coordinates)
         canvasData.positions[draggedId] = { x: snappedX, y: snappedY };
 
         // Push away any overlapping elements
@@ -2157,7 +2192,7 @@ function setupCanvasDragAndDrop() {
         const deltaX = snappedX - group.position.x;
         const deltaY = snappedY - group.position.y;
 
-        // Update group position
+        // Update group position (store in canvas coordinates)
         group.position.x = snappedX;
         group.position.y = snappedY;
 
