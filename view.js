@@ -1181,14 +1181,15 @@ function renderCanvasTab(tab) {
   dragHandle.textContent = '⋮⋮';
   headerDiv.appendChild(dragHandle);
 
-  // Children indicator (dot) if tab has children
+  // Children indicator if tab has children
   const tabHasChildren = hasChildren(tab.id);
   if (tabHasChildren) {
     const childrenDot = document.createElement('div');
     childrenDot.className = 'canvas-tab-children-dot';
 
-    // Show different states based on expand/collapse
+    // Show different states based on hideChildren toggle
     if (hideChildren) {
+      // Show expandable arrow when hide children is ON
       const isExpanded = expandedParents.has(tab.id);
       childrenDot.textContent = isExpanded ? '▼' : '▶';
       childrenDot.classList.add('expandable');
@@ -1198,9 +1199,19 @@ function renderCanvasTab(tab) {
         toggleParentExpand(tab.id);
       });
     } else {
+      // Show clickable dot when hide children is OFF
       childrenDot.textContent = '●';
       const childCount = getAllChildren(tab.id).size;
-      childrenDot.title = `Has ${childCount} child tab(s)`;
+      childrenDot.title = `Has ${childCount} child tab(s). Click to hide children.`;
+      childrenDot.classList.add('expandable');
+      childrenDot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Enable hide children mode and expand this parent
+        hideChildren = true;
+        document.getElementById('hideChildrenToggle').checked = true;
+        expandedParents.add(tab.id);
+        render();
+      });
     }
 
     headerDiv.appendChild(childrenDot);
