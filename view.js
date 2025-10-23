@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('darkModeBtn').addEventListener('click', toggleDarkMode);
   document.getElementById('createGroupBtn').addEventListener('click', createNewGroup);
   document.getElementById('autoGroupBtn').addEventListener('click', autoGroupByDomain);
+  document.getElementById('clearAutoGroupsBtn').addEventListener('click', clearAutoGroups);
   document.getElementById('refreshBtn').addEventListener('click', loadAndRender);
   document.getElementById('syncFromBrowserBtn').addEventListener('click', syncFromBrowser);
   document.getElementById('saveSessionBtn').addEventListener('click', saveSession);
@@ -130,9 +131,11 @@ function switchViewMode(mode) {
   const gridSnapLabel = document.getElementById('gridSnapToggleLabel');
   const createGroupBtn = document.getElementById('createGroupBtn');
   const autoGroupBtn = document.getElementById('autoGroupBtn');
+  const clearAutoGroupsBtn = document.getElementById('clearAutoGroupsBtn');
   gridSnapLabel.style.display = mode === 'canvas' ? 'flex' : 'none';
   createGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
   autoGroupBtn.style.display = mode === 'canvas' ? 'block' : 'none';
+  clearAutoGroupsBtn.style.display = mode === 'canvas' ? 'block' : 'none';
 
   // Show/hide tree-specific controls
   const selectionModeBtn = document.getElementById('selectionModeBtn');
@@ -1067,6 +1070,44 @@ function autoGroupByDomain() {
   const newGroupCount = Object.keys(newGroups).length - Object.keys(manualGroups).length;
   const manualGroupCount = Object.keys(manualGroups).length;
   alert(`Created ${newGroupCount} new auto-group(s) based on domains.\n${manualGroupCount} manual group(s) preserved.\nTabs with unique domains remain ungrouped.`);
+}
+
+// Clear all auto-generated groups (preserve manual groups)
+async function clearAutoGroups() {
+  if (!confirm('Clear all auto-generated groups? Manual groups will be preserved.\n\nTabs will remain on the canvas.')) {
+    return;
+  }
+
+  // Identify auto-generated groups
+  // Auto-groups have IDs like: group_timestamp_index
+  // Manual groups have IDs like: group_timestamp (no underscore after timestamp)
+  const manualGroups = {};
+  const autoGroupIds = [];
+
+  Object.entries(canvasData.groups).forEach(([groupId, group]) => {
+    // Check if this is an auto-group by looking at the ID pattern
+    // Auto-groups: group_1234567890_0, group_1234567890_1, etc.
+    // Manual groups: group_1234567890
+    const parts = groupId.split('_');
+    if (parts.length === 3 && !isNaN(parts[2])) {
+      // This is an auto-group (has index suffix)
+      autoGroupIds.push(groupId);
+    } else {
+      // This is a manual group
+      manualGroups[groupId] = group;
+    }
+  });
+
+  // Remove auto-groups
+  canvasData.groups = manualGroups;
+
+  // Tabs from removed groups stay in their current positions
+  // (they don't get deleted, just ungrouped)
+
+  await saveCanvasData();
+  render();
+
+  alert(`Removed ${autoGroupIds.length} auto-generated group(s).\n${Object.keys(manualGroups).length} manual group(s) preserved.`);
 }
 
 // Delete a group (but keep the tabs)
