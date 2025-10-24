@@ -23,7 +23,9 @@ function showChildrenPopup(parentId, x, y) {
     popup.appendChild(item);
   });
 
-  document.body.appendChild(popup);
+  // Append to fullscreen element if in fullscreen, otherwise to body
+  const targetElement = document.fullscreenElement || document.body;
+  targetElement.appendChild(popup);
 
   // Position the popup, ensuring it stays on-screen
   positionPopupOnScreen(popup, x, y);
@@ -97,16 +99,15 @@ function showTabContextMenu(tabId, x, y) {
   // Add group section
   addGroupMenuItems(menu, tabId);
 
-  document.body.appendChild(menu);
-  console.log('Menu appended to body');
+  // Append to fullscreen element if in fullscreen, otherwise to body
+  const targetElement = document.fullscreenElement || document.body;
+  targetElement.appendChild(menu);
+  console.log('Menu appended to:', document.fullscreenElement ? 'fullscreen element' : 'body');
 
   // In fullscreen mode, ensure the menu is visible
   if (document.fullscreenElement) {
-    console.log('In fullscreen mode - forcing menu visibility');
+    console.log('In fullscreen mode - ensuring visibility');
     menu.style.zIndex = '10001';
-    menu.style.display = 'block';
-    menu.style.visibility = 'visible';
-    menu.style.opacity = '1';
   }
 
   // Position the menu, ensuring it stays on-screen

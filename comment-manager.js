@@ -278,7 +278,9 @@ function createTabCommentActions(tab, tabId, textarea, popup) {
 
 // Helper: Position popup at center of viewport
 function positionPopupAtCenter(popup) {
-  document.body.appendChild(popup);
+  // Append to fullscreen element if in fullscreen, otherwise to body
+  const targetElement = document.fullscreenElement || document.body;
+  targetElement.appendChild(popup);
   const rect = popup.getBoundingClientRect();
   popup.style.left = `${(window.innerWidth - rect.width) / 2}px`;
   popup.style.top = `${(window.innerHeight - rect.height) / 2}px`;
