@@ -94,24 +94,30 @@ function createFaviconElement(url, className = 'favicon') {
 }
 
 // Get all children of a tab recursively
-function getAllChildren(parentId, tabsData) {
-  const children = [];
-  Object.values(tabsData).forEach(tab => {
-    if (tab.parentId === parentId) {
-      children.push(tab);
-      children.push(...getAllChildren(tab.id, tabsData));
-    }
-  });
+// Note: Uses global tabsData variable
+function getAllChildren(parentId) {
+  const children = new Set();
+  const findChildren = (tabId) => {
+    Object.values(tabsData).forEach(tab => {
+      if (tab.parentId === tabId) {
+        children.add(tab.id);
+        findChildren(tab.id); // Recursive
+      }
+    });
+  };
+  findChildren(parentId);
   return children;
 }
 
 // Check if a tab has children
-function hasChildren(tabId, tabsData) {
+// Note: Uses global tabsData variable
+function hasChildren(tabId) {
   return Object.values(tabsData).some(tab => tab.parentId === tabId);
 }
 
 // Collect all descendants with depth information
-function collectChildrenWithDepth(parentId, tabsData, startDepth = 0) {
+// Note: Uses global tabsData variable
+function collectChildrenWithDepth(parentId, startDepth = 0) {
   const children = [];
   const collectRecursive = (tabId, depth) => {
     Object.values(tabsData).forEach(tab => {
@@ -126,7 +132,8 @@ function collectChildrenWithDepth(parentId, tabsData, startDepth = 0) {
 }
 
 // Check for circular parent-child relationships
-function wouldCreateCircularRelationship(childId, parentId, tabsData) {
+// Note: Uses global tabsData variable
+function wouldCreateCircularRelationship(childId, parentId) {
   // Don't allow a tab to be its own parent
   if (childId === parentId) {
     return true;

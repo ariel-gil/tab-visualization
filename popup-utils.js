@@ -6,8 +6,8 @@ function showChildrenPopup(parentId, x, y) {
   // Remove existing popup
   removeExistingElement('.canvas-children-popup');
 
-  // Get all children recursively
-  const children = collectChildrenWithDepth(parentId, tabsData);
+  // Get all children recursively (uses global tabsData)
+  const children = collectChildrenWithDepth(parentId);
 
   if (children.length === 0) return;
 
