@@ -227,6 +227,25 @@ The visualization listens to `chrome.storage.onChanged` to automatically update 
 - ✅ Tab comments with bubble indicators (clickable)
 - ✅ Modular code architecture (refactored into 5+ modules)
 
+## Known Issues / Bugs to Fix
+
+**High Priority:**
+1. **Canvas Drag Jump Bug** - Dragging a tab or group sometimes causes it to "jump" to the top left corner (0,0) of the canvas
+   - Likely related to offset calculation during drag events
+   - May be caused by scroll position not being properly accounted for
+   - Investigate: `setupCanvasDragAndDrop()` in view.js, particularly dragend handler
+
+2. **"Show Closed Tabs" Toggle Issues**
+   - Canvas View: Toggle should be hidden (canvas only shows active tabs by design)
+   - Tree View: Toggle exists but doesn't work properly
+   - Need to: Hide toggle in Canvas View, fix Tree View filtering logic
+
+**Medium Priority:**
+- None currently
+
+**Low Priority:**
+- None currently
+
 ## Future Enhancement Considerations
 
 Potential features for future versions:
