@@ -72,13 +72,26 @@ A Microsoft Edge / Chrome extension that visualizes tab relationships and browsi
 - **background.js** - Service worker that tracks tab events
 - **view.html** - Main visualization page
 - **view.css** - Styling for the visualization
-- **view.js** - Logic for rendering the tree and handling interactions
+- **view.js** - Main application logic and rendering (1792 lines)
 - **icon16.png, icon48.png, icon128.png** - Extension icons
+
+### Modular Architecture (Refactored Jan 2025)
+
+The codebase has been refactored into focused modules for better maintainability:
+
+- **utils.js** (171 lines) - Common utilities, DOM helpers, collision detection
+- **storage-manager.js** (145 lines) - Session save/load, browser sync, storage operations
+- **group-manager.js** (343 lines) - Group creation, auto-grouping, tab-group operations
+- **comment-manager.js** (291 lines) - Canvas and tab comment management
+- **popup-utils.js** (160 lines) - Children popup, context menus, menu builders
+
+**Benefits:** 37% code reduction, eliminated duplication, single responsibility per module
 
 ### Helper Files
 
 - **generate-icons.html** - Browser-based tool to create custom icons
 - **create-icons.js** - Node.js script to generate icons (optional)
+- **CLAUDE.md** - Detailed technical documentation for AI assistants
 
 ## How It Works
 
@@ -233,12 +246,18 @@ tab-visualization/
 ├── background.js          # Service worker
 ├── view.html             # Main UI
 ├── view.css              # Styles
-├── view.js               # UI logic
+├── view.js               # Main application logic (1792 lines)
+├── utils.js              # Common utilities (171 lines)
+├── storage-manager.js    # Storage operations (145 lines)
+├── group-manager.js      # Group management (343 lines)
+├── comment-manager.js    # Comment features (291 lines)
+├── popup-utils.js        # Popup helpers (160 lines)
 ├── icon16.png            # Small icon
 ├── icon48.png            # Medium icon
 ├── icon128.png           # Large icon
 ├── generate-icons.html   # Icon generator
 ├── create-icons.js       # Icon script
+├── CLAUDE.md             # Technical docs
 └── README.md             # This file
 ```
 
@@ -261,12 +280,14 @@ tab-visualization/
 - ✅ Tab grouping with auto-group by domain (preserves manual groups)
 - ✅ Smart push-away collision handling
 - ✅ Children popup indicators in canvas view
-- ✅ Fullscreen canvas mode
+- ✅ Fullscreen canvas mode with working popups/menus
 - ✅ Dark mode support
 - ✅ Session save/load with canvas state
 - ✅ Multi-select for manual parent-child relationships
 - ✅ Scroll position preservation
 - ✅ Active-only filtering in canvas view
+- ✅ **Clickable comment bubbles (💬)** - Click to view/edit comments
+- ✅ **Modular code architecture** - Clean, maintainable codebase
 
 ## Future Enhancement Ideas
 

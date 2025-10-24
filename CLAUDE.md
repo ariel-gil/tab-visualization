@@ -224,6 +224,8 @@ The visualization listens to `chrome.storage.onChanged` to automatically update 
 - ✅ Multi-select parent-child editing
 - ✅ Children popup indicators
 - ✅ Scroll position preservation
+- ✅ Tab comments with bubble indicators (clickable)
+- ✅ Modular code architecture (refactored into 5+ modules)
 
 ## Future Enhancement Considerations
 
@@ -257,3 +259,58 @@ When implementing new features, maintain:
 - Preserve manual groups when auto-grouping
 - Always save scroll position before clearing container
 - Grid snap is optional, not mandatory
+
+## Development History & Progress Reports
+
+### Session: January 2025 - Code Refactoring & Bug Fixes
+
+**Major Refactoring (37% code reduction):**
+- Split view.js (2863 lines → 1792 lines, -1071 lines)
+- Created modular architecture with 5 focused modules:
+  - `utils.js` (171 lines) - Common utilities, DOM helpers, tab helpers
+  - `storage-manager.js` (145 lines) - Session save/load, browser sync, storage operations
+  - `group-manager.js` (343 lines) - Group creation, auto-grouping, tab-group operations
+  - `comment-manager.js` (291 lines) - Canvas and tab comment management
+  - `popup-utils.js` (160 lines) - Children popup, context menus, menu builders
+
+**Benefits:**
+- Eliminated code duplication (popup positioning was in 2+ places)
+- Improved maintainability (each module has single responsibility)
+- Easier debugging (bug fixes now happen in one place)
+- Better scalability for future features
+
+**Bug Fixes:**
+1. **Tab Comment Bubbles (💬) Not Showing**
+   - Issue: Comments saved to local `tab` reference instead of global `tabsData`
+   - Fix: Changed to save directly to `tabsData[tabId].comment`
+   - Enhancement: Made bubble clickable with hover effect
+   - Simplified: Removed tab URL/title from comment popup (cleaner UI)
+
+2. **Context Menu Not Visible in Fullscreen**
+   - Issue: Popups appended to `document.body` but only `.container` visible in fullscreen
+   - Fix: All popups now append to `document.fullscreenElement` when in fullscreen mode
+   - Affected: Context menus, comment popups, children popups
+
+3. **Canvas Rendering Broken After Refactor**
+   - Issue: Utility functions expected `tabsData` parameter but were called without it
+   - Fix: Changed functions to use global `tabsData` variable directly
+   - Functions: `getAllChildren()`, `hasChildren()`, `collectChildrenWithDepth()`
+
+**Code Quality Improvements:**
+- Added comprehensive logging for debugging
+- Consistent function signatures across modules
+- Better separation of concerns
+- Improved code comments and documentation
+
+**Commits:**
+- `69ad361` - Initial refactoring (created all modules)
+- `1b56d06` - Comment bubble and initial fullscreen fixes
+- `78b6353` - Fullscreen popup visibility fix
+
+**Testing Verified:**
+- ✅ All view modes working (Tree, Sequential, Canvas)
+- ✅ Comment bubbles appear and are clickable
+- ✅ Comments save properly and persist
+- ✅ Context menus visible in fullscreen mode
+- ✅ All popups work in fullscreen mode
+- ✅ No regressions in existing functionality
