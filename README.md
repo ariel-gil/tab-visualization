@@ -1,22 +1,23 @@
-# Tab Journey Visualizer
+# Tab Visualizer
 
-A Microsoft Edge / Chrome extension that visualizes tab relationships and browsing history in an interactive tree view. See how your tabs are connected when opened via hyperlinks or from other tabs.
+An Edge / Chrome extension that visualizes tab relationships and browsing history in an interactive tree view. See how your tabs are connected when opened via hyperlinks or from other tabs.
+
+Current status - usable, still a few bugs, and still figuring out usefulness. Most of base functionality exists. Still dont have ability to close tabs (only view them and go-to tab when clicked). I think it has potential but might be obsolete with agentic AI replacing browsing. 
+
+![Screenshot of Tab Journey Visualizer interface](Screenshot%202025-10-24%20121507.png)
+
 
 ## Features
 
 - **Multiple View Modes**: Tree view (hierarchical relationships), Sequential view (chronological timeline), and Canvas view (2D spatial organization with infinite scrolling)
-- **Tab Relationship Tracking**: Automatically tracks parent-child relationships when tabs are opened
-- **Drag-to-Parent**: In Canvas view, drag a tab onto another to make it a child (with visual feedback)
+- **Tab Relationship Tracking**: Automatically tracks parent-child relationships - when tabs are opened via hyperlink from another tab
+- **Drag-to-Parent**: In Canvas view, drag a tab onto another to make it a child (with visual feedback). 
+   - Can use multi-select to do this in tree view.
 - **Tab Comments**: Add notes to any tab via context menu (💬 indicator shows tabs with comments)
-- **Infinite 2D Canvas**: Drag and drop tabs anywhere with automatic push-away of overlapping elements - no boundaries
+- **Infinite 2D Canvas**: Drag and drop tabs anywhere with automatic push-away of overlapping elements
 - **Smart Grouping**: Auto-group tabs by domain or create custom groups with visual organization
-- **Children Popup**: Click the dot (●) on any parent tab to see all children in a hierarchical popup
-- **Fullscreen Canvas Mode**: Immersive fullscreen view with minimizable controls (press ESC to exit)
-- **Dark Mode**: Built-in dark theme that works on extension pages
-- **Active Tabs Only**: Canvas view shows only open tabs for cleaner organization
+- **Children Popup**: Click the dot (●) on any parent tab to see all children tabs
 - **Search & Filter**: Quickly find tabs by title or URL with live filtering
-- **Session Management**: Save and load sessions with canvas layouts, groups, and preferences
-- **Multi-Select**: Manually create parent-child relationships in Tree view
 - **Data Export**: Export your tab history as JSON with full canvas state
 - **Persistent Storage**: Tab data, positions, groups, and comments survive browser restarts
 - **Real-time Updates**: Visualization updates automatically as you browse
@@ -51,7 +52,6 @@ A Microsoft Edge / Chrome extension that visualizes tab relationships and browsi
 2. **Pin the Tab (Recommended)**
    - Right-click on the visualization tab
    - Select "Pin tab"
-   - This keeps the visualizer accessible and prevents accidental closing
 
 3. **Browse Normally**
    - Open new tabs by clicking links or using Ctrl+T
@@ -75,9 +75,7 @@ A Microsoft Edge / Chrome extension that visualizes tab relationships and browsi
 - **view.js** - Main application logic and rendering (1792 lines)
 - **icon16.png, icon48.png, icon128.png** - Extension icons
 
-### Modular Architecture (Refactored Jan 2025)
-
-The codebase has been refactored into focused modules for better maintainability:
+### Modular Architecture (Refactored)
 
 - **utils.js** (171 lines) - Common utilities, DOM helpers, collision detection
 - **storage-manager.js** (145 lines) - Session save/load, browser sync, storage operations
@@ -85,13 +83,11 @@ The codebase has been refactored into focused modules for better maintainability
 - **comment-manager.js** (291 lines) - Canvas and tab comment management
 - **popup-utils.js** (160 lines) - Children popup, context menus, menu builders
 
-**Benefits:** 37% code reduction, eliminated duplication, single responsibility per module
-
 ### Helper Files
 
 - **generate-icons.html** - Browser-based tool to create custom icons
 - **create-icons.js** - Node.js script to generate icons (optional)
-- **CLAUDE.md** - Detailed technical documentation for AI assistants
+- **CLAUDE.md** - Detailed technical documentation for Claude Code
 
 ## How It Works
 
@@ -147,21 +143,7 @@ Click "Clear History" to delete all tracked tabs. This action cannot be undone. 
 
 ### Canvas View & Grouping
 
-The Canvas View provides an infinite 2D workspace where you can spatially organize your tabs:
-
-**Navigation:**
-- Switch to Canvas View using the tab selector at the top
-- Drag any tab or group anywhere on the infinite canvas (full X/Y movement)
-- Overlapping elements automatically push away to make room
-- Toggle "Grid Snap" to snap tabs to a 20px grid for easier alignment
-- Press "⛶ Fullscreen" for an immersive distraction-free view (ESC to exit)
-
-**Canvas Features:**
-- **Infinite Canvas**: No boundaries - elements can be positioned anywhere
-- **Smart Push-Away**: Dragging over other elements automatically moves them aside
-- **Active Tabs Only**: Canvas only shows open tabs for cleaner organization
-- **Children Indicators**: Tabs with children show a dot (●) - click to view in a popup
-- **Scroll Position Memory**: Your scroll position is preserved when making changes
+The Canvas View provides an infinite 2D workspace where you can spatially organize your tabs.
 
 **Grouping:**
 
@@ -183,12 +165,6 @@ The Canvas View provides an infinite 2D workspace where you can spatially organi
    - Click "🧹 Clear Auto-Groups" to remove only auto-generated groups
    - Manual groups are preserved
    - Useful for re-organizing after changes
-
-**Grouping Features:**
-- Searchable group list when adding tabs (appears when >5 groups)
-- Groups sized dynamically based on active tab count
-- Color-coded groups for easy identification
-- Context menu for quick tab organization
 
 ## Customization
 
@@ -321,5 +297,3 @@ For issues or questions:
 3. Open an issue on the project repository
 
 ---
-
-**Enjoy visualizing your browsing journey! 🌳**
