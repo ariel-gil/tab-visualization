@@ -520,8 +520,14 @@ button.active:hover {
   right: 4px;
   font-size: 16px;
   opacity: 0.8;
-  pointer-events: none;
+  cursor: pointer;
   z-index: 20;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.canvas-tab-comment-indicator:hover {
+  opacity: 1;
+  transform: scale(1.2);
 }
 
 .canvas-tab-menu-btn {
@@ -630,13 +636,21 @@ button.active:hover {
   border: 1px solid #ddd;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  z-index: 10001;
+  z-index: 10001 !important;
   min-width: 180px;
   max-width: 280px;
   max-height: 400px;
   padding: 4px 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Ensure context menu is visible in fullscreen mode */
+.container.fullscreen-mode .canvas-context-menu {
+  z-index: 10001 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .canvas-context-menu-search {

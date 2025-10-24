@@ -100,13 +100,29 @@ function showTabContextMenu(tabId, x, y) {
   document.body.appendChild(menu);
   console.log('Menu appended to body');
 
+  // In fullscreen mode, ensure the menu is visible
+  if (document.fullscreenElement) {
+    console.log('In fullscreen mode - forcing menu visibility');
+    menu.style.zIndex = '10001';
+    menu.style.display = 'block';
+    menu.style.visibility = 'visible';
+    menu.style.opacity = '1';
+  }
+
   // Position the menu, ensuring it stays on-screen
   positionPopupOnScreen(menu, x, y);
 
   console.log('Menu positioned at:', menu.style.left, menu.style.top);
   console.log('Menu rect:', menu.getBoundingClientRect());
-  console.log('Menu computed style z-index:', window.getComputedStyle(menu).zIndex);
+  console.log('Menu computed style:', {
+    zIndex: window.getComputedStyle(menu).zIndex,
+    display: window.getComputedStyle(menu).display,
+    visibility: window.getComputedStyle(menu).visibility,
+    opacity: window.getComputedStyle(menu).opacity,
+    position: window.getComputedStyle(menu).position
+  });
   console.log('Menu element in DOM?', document.body.contains(menu));
+  console.log('Menu dimensions:', menu.offsetWidth, 'x', menu.offsetHeight);
 
   // Close menu on click outside
   setupClickOutsideToClose(menu);

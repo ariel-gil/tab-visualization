@@ -1060,14 +1060,17 @@ function renderCanvasTab(tab, offsetX = 0, offsetY = 0) {
     const commentIndicator = document.createElement('div');
     commentIndicator.className = 'canvas-tab-comment-indicator';
     commentIndicator.textContent = '💬';
-    commentIndicator.title = 'This tab has a comment. Click the ⋯ menu to view/edit.';
+    commentIndicator.title = 'Click to view/edit comment';
+    commentIndicator.style.cursor = 'pointer';
+
+    // Click handler to show comment popup
+    commentIndicator.onclick = (e) => {
+      e.stopPropagation(); // Prevent tab click
+      showTabCommentPopup(tab.id);
+    };
+
     tabDiv.appendChild(commentIndicator);
-    console.log('Comment indicator appended to tabDiv');
-    console.log('Indicator styles:', {
-      position: commentIndicator.style.position,
-      className: commentIndicator.className,
-      textContent: commentIndicator.textContent
-    });
+    console.log('Comment indicator appended to tabDiv with click handler');
   } else {
     console.log('✗ No comment indicator - comment:', tab.comment);
   }

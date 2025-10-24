@@ -77,8 +77,18 @@ function showCommentPopup(commentId, isNew = false) {
 
 // Show comment popup for a tab
 function showTabCommentPopup(tabId) {
+  console.log('=== showTabCommentPopup called ===');
+  console.log('Tab ID:', tabId);
+  console.log('tabsData[tabId]:', tabsData[tabId]);
+
   const tab = tabsData[tabId];
-  if (!tab) return;
+  if (!tab) {
+    console.error('Tab not found in tabsData!');
+    return;
+  }
+
+  console.log('Tab object:', tab);
+  console.log('Existing comment:', tab.comment);
 
   // Remove any existing popup
   const existingPopup = document.querySelector('.canvas-comment-popup');
@@ -89,14 +99,10 @@ function showTabCommentPopup(tabId) {
   popup.className = 'canvas-comment-popup';
 
   // Header
-  const header = createPopupHeader('Tab Comment', popup);
+  const header = createPopupHeader('Comment', popup);
   popup.appendChild(header);
 
-  // Tab info section
-  const tabInfo = createTabInfoSection(tab);
-  popup.appendChild(tabInfo);
-
-  // Content
+  // Content (no tab info section - simplified)
   const content = document.createElement('div');
   content.className = 'canvas-comment-popup-content';
 
@@ -223,16 +229,19 @@ function createTabCommentActions(tab, tabId, textarea, popup) {
   saveBtn.addEventListener('click', async () => {
     console.log('=== Saving tab comment ===');
     console.log('Tab ID:', tabId);
+    console.log('Tab reference:', tab);
+    console.log('tabsData[tabId] before save:', tabsData[tabId]);
     console.log('Comment text:', textarea.value);
     const trimmedComment = textarea.value.trim();
     console.log('Trimmed comment:', trimmedComment);
 
     if (trimmedComment) {
-      tab.comment = trimmedComment;
-      console.log('Comment saved to tab object:', tab.comment);
-      console.log('Tab object:', tab);
+      // Save directly to tabsData to ensure it persists
+      tabsData[tabId].comment = trimmedComment;
+      console.log('Comment saved to tabsData[tabId]:', tabsData[tabId].comment);
+      console.log('Tab object after save:', tabsData[tabId]);
     } else {
-      delete tab.comment; // Remove comment if empty
+      delete tabsData[tabId].comment; // Remove comment if empty
       console.log('Comment deleted (was empty)');
     }
 
@@ -241,6 +250,7 @@ function createTabCommentActions(tab, tabId, textarea, popup) {
     await chrome.storage.local.set({ tabs: tabsData });
     console.log('Saved to storage. Tab in tabsData:', tabsData[tabId]);
     console.log('Current view mode:', viewMode);
+    console.log('Tab comment value after save:', tabsData[tabId].comment);
 
     // Reset flag after a short delay to allow storage event to process
     setTimeout(() => {
@@ -248,8 +258,11 @@ function createTabCommentActions(tab, tabId, textarea, popup) {
     }, 100);
 
     popup.remove();
+
+    // Force a re-render to ensure comment indicator appears
+    console.log('About to render...');
     render();
-    console.log('Render complete');
+    console.log('Render complete. Tab should now show comment indicator.');
   });
   actions.appendChild(saveBtn);
 
