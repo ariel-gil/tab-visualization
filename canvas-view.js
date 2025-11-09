@@ -673,6 +673,10 @@ function wouldCollide(type, id, newX, newY, newWidth, newHeight) {
 function setupCanvasDragAndDrop() {
   const workspace = document.getElementById('canvasWorkspace');
 
+  // Track last valid mouse position (fix for HTML5 Drag API bug where clientX/clientY can be 0 in dragend)
+  let lastValidMouseX = 0;
+  let lastValidMouseY = 0;
+
   // Drag start
   workspace.addEventListener('dragstart', (e) => {
     const target = e.target;
@@ -723,6 +727,12 @@ function setupCanvasDragAndDrop() {
   // Drag over
   workspace.addEventListener('dragover', (e) => {
     e.preventDefault();
+
+    // Track mouse position for use in dragend (works around browser bug where dragend can have clientX/clientY = 0)
+    if (e.clientX !== 0 || e.clientY !== 0) {
+      lastValidMouseX = e.clientX;
+      lastValidMouseY = e.clientY;
+    }
 
     // Highlight group or tab when dragging tab over it
     if (draggedType === 'tab') {
@@ -828,9 +838,14 @@ function setupCanvasDragAndDrop() {
       const workspaceRect = workspace.getBoundingClientRect();
 
       // COORDINATE CONVERSION FOR INFINITE CANVAS
+      // BUG FIX: Use tracked mouse position if e.clientX/clientY are invalid (0,0)
+      // The HTML5 Drag API can return 0,0 in dragend event in Chrome/Edge browsers
+      const safeClientX = (e.clientX === 0 && e.clientY === 0) ? lastValidMouseX : e.clientX;
+      const safeClientY = (e.clientX === 0 && e.clientY === 0) ? lastValidMouseY : e.clientY;
+
       // Step 1: Get mouse position relative to workspace, accounting for scroll
-      const newX = e.clientX - workspaceRect.left + workspace.scrollLeft - dragOffset.x;
-      const newY = e.clientY - workspaceRect.top + workspace.scrollTop - dragOffset.y;
+      const newX = safeClientX - workspaceRect.left + workspace.scrollLeft - dragOffset.x;
+      const newY = safeClientY - workspaceRect.top + workspace.scrollTop - dragOffset.y;
 
       // Step 2: Get the offset that was applied to make negative coordinates positive
       const offsetX = parseFloat(workspace.dataset.offsetX) || 0;
@@ -841,9 +856,9 @@ function setupCanvasDragAndDrop() {
       const canvasX = newX - offsetX;
       const canvasY = newY - offsetY;
 
-      // Step 4: Apply grid snapping if enabled
-      const snappedX = snapToGrid(canvasX);
-      const snappedY = snapToGrid(canvasY);
+      // Step 4: Apply grid snapping if enabled (BUG FIX: respect gridSnapEnabled toggle)
+      const snappedX = gridSnapEnabled ? snapToGrid(canvasX) : canvasX;
+      const snappedY = gridSnapEnabled ? snapToGrid(canvasY) : canvasY;
 
       if (draggedType === 'tab') {
         const tabWidth = 230;

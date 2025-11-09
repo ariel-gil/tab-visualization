@@ -139,6 +139,10 @@ function switchViewMode(mode) {
   const sortSelect = document.getElementById('sortOrderSelect');
   sortSelect.style.display = mode === 'sequential' ? 'block' : 'none';
 
+  // Show/hide closed tabs toggle (not relevant in canvas view - canvas only shows active tabs)
+  const showClosedLabel = document.getElementById('showClosedToggleLabel');
+  showClosedLabel.style.display = mode === 'canvas' ? 'none' : 'flex';
+
   // Show/hide canvas-specific controls
   const gridSnapLabel = document.getElementById('gridSnapToggleLabel');
   const createGroupBtn = document.getElementById('createGroupBtn');
