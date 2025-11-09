@@ -1,10 +1,23 @@
 // relationship-manager.js - Manages parent-child relationships between tabs
 
-// Make a single tab a child of another tab (for canvas drag-drop)
+/**
+ * Make a single tab a child of another tab (for canvas drag-drop)
+ * @param {number} childId - ID of tab to become a child
+ * @param {number} parentId - ID of tab to become the parent
+ * @returns {Promise<boolean>} True if relationship was created successfully
+ * @note Uses global tabsData variable
+ */
 async function makeTabChild(childId, parentId) {
   // Don't allow a tab to be its own parent
   if (childId === parentId) {
     alert('Cannot make a tab its own child!');
+    return false;
+  }
+
+  // Validate that both tabs exist
+  if (!tabsData[childId] || !tabsData[parentId]) {
+    console.error('Invalid tab IDs:', { childId, parentId });
+    alert('One or both tabs no longer exist.');
     return false;
   }
 
@@ -27,19 +40,34 @@ async function makeTabChild(childId, parentId) {
   }
 
   // Update parent relationship
-  if (tabsData[childId]) {
-    tabsData[childId].parentId = parentId;
+  tabsData[childId].parentId = parentId;
+
+  // Save to storage with error handling
+  try {
+    await chrome.storage.local.set({ tabs: tabsData });
+    return true;
+  } catch (error) {
+    console.error('Failed to save relationship:', error);
+    alert('Failed to save relationship. Please try again.');
+    return false;
   }
-
-  // Save to storage
-  await chrome.storage.local.set({ tabs: tabsData });
-
-  return true;
 }
 
-// Make multiple selected tabs children of a target tab
+/**
+ * Make multiple selected tabs children of a target tab (for multi-select mode)
+ * @param {number} parentId - ID of tab to become the parent
+ * @returns {Promise<void>}
+ * @note Uses global selectedTabs, tabsData, selectionMode variables
+ */
 async function makeTabsChildren(parentId) {
   if (selectedTabs.size === 0) return;
+
+  // Validate parent tab exists
+  if (!tabsData[parentId]) {
+    console.error('Parent tab does not exist:', parentId);
+    alert('Parent tab no longer exists.');
+    return;
+  }
 
   // Don't allow a tab to be its own parent
   if (selectedTabs.has(parentId)) {
@@ -74,16 +102,28 @@ async function makeTabsChildren(parentId) {
     }
   });
 
-  // Save to storage
-  await chrome.storage.local.set({ tabs: tabsData });
+  // Save to storage with error handling
+  try {
+    await chrome.storage.local.set({ tabs: tabsData });
+  } catch (error) {
+    console.error('Failed to save relationships:', error);
+    alert('Failed to save relationships. Please try again.');
+    return;
+  }
 
   // Clear selection and exit selection mode
   selectedTabs.clear();
   selectionMode = false;
   const btn = document.getElementById('selectionModeBtn');
-  btn.classList.remove('active');
-  btn.textContent = 'Multi-Select Mode';
+  if (btn) {
+    btn.classList.remove('active');
+    btn.textContent = 'Multi-Select Mode';
+  }
 
   // Reload and render
-  await loadAndRender();
+  try {
+    await loadAndRender();
+  } catch (error) {
+    console.error('Failed to reload after relationship update:', error);
+  }
 }

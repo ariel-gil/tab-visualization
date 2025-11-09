@@ -1,6 +1,10 @@
 // utils.js - Common utility functions used across the application
 
-// Escape HTML to prevent XSS
+/**
+ * Escape HTML special characters to prevent XSS attacks
+ * @param {string} text - Text to escape
+ * @returns {string} HTML-safe text
+ */
 function escapeHtml(text) {
   const map = {
     '&': '&amp;',
@@ -12,12 +16,22 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// Snap a value to grid
+/**
+ * Snap a coordinate value to the nearest grid point
+ * @param {number} value - The coordinate value to snap
+ * @param {number} [gridSize=20] - Grid size in pixels
+ * @returns {number} Snapped coordinate value
+ */
 function snapToGrid(value, gridSize = 20) {
   return Math.round(value / gridSize) * gridSize;
 }
 
-// Check if two rectangles overlap
+/**
+ * Check if two rectangles overlap (collision detection)
+ * @param {Object} rect1 - First rectangle {x, y, width, height}
+ * @param {Object} rect2 - Second rectangle {x, y, width, height}
+ * @returns {boolean} True if rectangles overlap
+ */
 function checkCollision(rect1, rect2) {
   const noOverlap = (
     rect1.x + rect1.width <= rect2.x ||
@@ -34,7 +48,12 @@ function checkCollision(rect1, rect2) {
   return overlaps;
 }
 
-// Position a popup element on screen, ensuring it stays within viewport bounds
+/**
+ * Position a popup element on screen, ensuring it stays within viewport bounds
+ * @param {HTMLElement} element - The popup element to position
+ * @param {number} x - Desired X position
+ * @param {number} y - Desired Y position
+ */
 function positionPopupOnScreen(element, x, y) {
   const rect = element.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
@@ -63,20 +82,32 @@ function positionPopupOnScreen(element, x, y) {
   return { x: finalX, y: finalY };
 }
 
-// Remove existing element by selector
+/**
+ * Remove an existing DOM element by selector
+ * @param {string} selector - CSS selector for element to remove
+ */
 function removeExistingElement(selector) {
   const existing = document.querySelector(selector);
   if (existing) existing.remove();
 }
 
-// Setup click-outside-to-close for popup elements
+/**
+ * Setup click-outside-to-close behavior for popup elements
+ * @param {HTMLElement} element - The popup element to auto-close
+ */
 function setupClickOutsideToClose(element) {
   setTimeout(() => {
     document.addEventListener('click', () => element.remove(), { once: true });
   }, 0);
 }
 
-// Create a DOM element with className and optional textContent
+/**
+ * Create a DOM element with className and optional textContent
+ * @param {string} tag - HTML tag name (e.g., 'div', 'span')
+ * @param {string} [className=''] - CSS class name(s)
+ * @param {string} [textContent=''] - Text content for the element
+ * @returns {HTMLElement} The created element
+ */
 function createElement(tag, className = '', textContent = '') {
   const element = document.createElement(tag);
   if (className) element.className = className;
@@ -84,7 +115,12 @@ function createElement(tag, className = '', textContent = '') {
   return element;
 }
 
-// Create a favicon image element
+/**
+ * Create a favicon image element with error handling
+ * @param {string} url - Favicon URL
+ * @param {string} [className='favicon'] - CSS class name
+ * @returns {HTMLImageElement} The favicon image element
+ */
 function createFaviconElement(url, className = 'favicon') {
   const favicon = document.createElement('img');
   favicon.className = className;
@@ -93,8 +129,12 @@ function createFaviconElement(url, className = 'favicon') {
   return favicon;
 }
 
-// Get all children of a tab recursively
-// Note: Uses global tabsData variable
+/**
+ * Get all children of a tab recursively
+ * @param {number} parentId - The parent tab ID
+ * @returns {Set<number>} Set of all descendant tab IDs
+ * @note Uses global tabsData variable
+ */
 function getAllChildren(parentId) {
   const children = new Set();
   const findChildren = (tabId) => {
@@ -109,8 +149,12 @@ function getAllChildren(parentId) {
   return children;
 }
 
-// Check if a tab has children
-// Note: Uses global tabsData variable
+/**
+ * Check if a tab has any children
+ * @param {number} tabId - The tab ID to check
+ * @returns {boolean} True if tab has children
+ * @note Uses global tabsData variable
+ */
 function hasChildren(tabId) {
   return Object.values(tabsData).some(tab => tab.parentId === tabId);
 }
@@ -131,15 +175,23 @@ function collectChildrenWithDepth(parentId, startDepth = 0) {
   return children;
 }
 
-// Check for circular parent-child relationships
-// Note: Uses global tabsData variable
+/**
+ * Check if making childId a child of parentId would create a circular relationship
+ * @param {number} childId - The tab that will become a child
+ * @param {number} parentId - The tab that will become the parent
+ * @returns {boolean} True if circular relationship would be created
+ *
+ * Example: If A → B → C exists, making C → A would create a circle
+ * We check if parentId is already a descendant of childId
+ */
 function wouldCreateCircularRelationship(childId, parentId) {
   // Don't allow a tab to be its own parent
   if (childId === parentId) {
     return true;
   }
 
-  // Check if parent is a descendant of child (would create a circle)
+  // Check if parentId is a descendant of childId (would create a circle)
+  // FIXED: Was checking descendants of parentId (backwards logic)
   const descendants = new Set();
   const collectDescendants = (tabId) => {
     if (!tabsData[tabId]) return;
@@ -150,9 +202,9 @@ function wouldCreateCircularRelationship(childId, parentId) {
       }
     });
   };
-  collectDescendants(parentId);
+  collectDescendants(childId); // Start from child, not parent
 
-  return descendants.has(childId);
+  return descendants.has(parentId); // Check if parent is in child's descendants
 }
 
 // Format timestamp for display

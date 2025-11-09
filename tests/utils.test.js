@@ -292,32 +292,31 @@ describe('Utils - Tab Relationships', () => {
       expect(wouldCreateCircularRelationship(1, 1)).toBe(true);
     });
 
-    test('NOTE: Current implementation has a logic bug - tests match CURRENT behavior', () => {
-      // The function comment says "Check if parent is a descendant of child"
-      // But the code actually checks if child is a descendant of parent
-      // This is backwards! But we'll test the current behavior for now
+    test('FIXED: Logic bug has been corrected - tests now match CORRECT behavior', () => {
+      // The function now correctly checks if parent is a descendant of child
+      // This prevents circular relationships properly
       expect(true).toBe(true);
     });
 
-    test('current behavior: detects when trying to make a tab a child of its descendant', () => {
+    test('should detect when trying to make a tab a child of its descendant', () => {
       global.tabsData = {
         1: { id: 1, parentId: null },
         2: { id: 2, parentId: 1 }  // 2 is a child of 1
       };
 
-      // Current code collects descendants of proposed parent (2)
-      // Descendants of 2: none
-      // Check if 1 is in that set: false
-      // So this returns false (even though it SHOULD detect the circle)
-      expect(wouldCreateCircularRelationship(1, 2)).toBe(false);
-
-      // But if we try to make 2 a child of 1 (which it already is):
+      // Trying to make 1 a child of 2 would create: 2 -> 1 -> 2 (circular!)
+      // FIXED: Now correctly checks descendants of 1 (the child in the operation)
       // Descendants of 1: {2}
-      // Check if 2 is in that set: true
-      expect(wouldCreateCircularRelationship(2, 1)).toBe(true);
+      // Check if 2 (parent) is in that set: true
+      expect(wouldCreateCircularRelationship(1, 2)).toBe(true);
+
+      // Trying to make 2 a child of 1 (which it already is):
+      // Descendants of 2: empty
+      // Check if 1 is in that set: false (not circular, just redundant)
+      expect(wouldCreateCircularRelationship(2, 1)).toBe(false);
     });
 
-    test('current behavior: nested relationship', () => {
+    test('should detect nested circular relationships', () => {
       global.tabsData = {
         1: { id: 1, parentId: null },
         2: { id: 2, parentId: 1 },
@@ -325,15 +324,16 @@ describe('Utils - Tab Relationships', () => {
         4: { id: 4, parentId: 3 }
       };
 
-      // Trying to make 1 a child of 4 SHOULD create a circle: 4 -> 1 -> 2 -> 3 -> 4
-      // But current code checks descendants of 4, which is empty
-      // So it returns false (incorrect!)
-      expect(wouldCreateCircularRelationship(1, 4)).toBe(false);
-
-      // However, trying to make 4 a child of 1 (descendant -> ancestor):
+      // Trying to make 1 a child of 4 would create: 4 -> 1 -> 2 -> 3 -> 4 (circular!)
+      // FIXED: Now correctly checks descendants of 1
       // Descendants of 1: {2, 3, 4}
-      // Check if 4 is in that set: true
-      expect(wouldCreateCircularRelationship(4, 1)).toBe(true);
+      // Check if 4 (parent) is in that set: true
+      expect(wouldCreateCircularRelationship(1, 4)).toBe(true);
+
+      // Trying to make 4 a child of 1 (descendant -> ancestor, valid):
+      // Descendants of 4: empty
+      // Check if 1 is in that set: false (not circular, just redundant)
+      expect(wouldCreateCircularRelationship(4, 1)).toBe(false);
     });
 
     test('should allow valid parent-child relationships', () => {
