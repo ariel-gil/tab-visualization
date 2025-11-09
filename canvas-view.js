@@ -414,12 +414,14 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
 
         let pushDistance;
         if (pushDirection === 'right' || pushDirection === 'left') {
-          // Calculate exact overlap in X direction
-          const overlapX = (newRect.x + newRect.width) - otherRect.x;
+          // Calculate exact overlap in X direction (works from any direction)
+          const overlapX = Math.min(newRect.x + newRect.width, otherRect.x + otherRect.width) -
+                           Math.max(newRect.x, otherRect.x);
           pushDistance = Math.max(overlapX + 20, 50); // At least 50px, or overlap + margin
         } else {
-          // Calculate exact overlap in Y direction
-          const overlapY = (newRect.y + newRect.height) - otherRect.y;
+          // Calculate exact overlap in Y direction (works from any direction)
+          const overlapY = Math.min(newRect.y + newRect.height, otherRect.y + otherRect.height) -
+                           Math.max(newRect.y, otherRect.y);
           pushDistance = Math.max(overlapY + 20, 50);
         }
 
@@ -457,10 +459,12 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
         let pushDistance;
 
         if (pushDirection === 'right' || pushDirection === 'left') {
-          const overlapX = (newRect.x + newRect.width) - groupRect.x;
+          const overlapX = Math.min(newRect.x + newRect.width, groupRect.x + groupRect.width) -
+                           Math.max(newRect.x, groupRect.x);
           pushDistance = Math.max(overlapX + 30, 100);
         } else {
-          const overlapY = (newRect.y + newRect.height) - groupRect.y;
+          const overlapY = Math.min(newRect.y + newRect.height, groupRect.y + groupRect.height) -
+                           Math.max(newRect.y, groupRect.y);
           pushDistance = Math.max(overlapY + 30, 100);
         }
 
@@ -498,10 +502,12 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
         let pushDistance;
 
         if (pushDirection === 'right' || pushDirection === 'left') {
-          const overlapX = (newRect.x + newRect.width) - otherRect.x;
+          const overlapX = Math.min(newRect.x + newRect.width, otherRect.x + otherRect.width) -
+                           Math.max(newRect.x, otherRect.x);
           pushDistance = Math.max(overlapX + 30, 100);
         } else {
-          const overlapY = (newRect.y + newRect.height) - otherRect.y;
+          const overlapY = Math.min(newRect.y + newRect.height, otherRect.y + otherRect.height) -
+                           Math.max(newRect.y, otherRect.y);
           pushDistance = Math.max(overlapY + 30, 100);
         }
 
@@ -540,10 +546,12 @@ function pushAwayOverlaps(type, id, newX, newY, newWidth, newHeight, depth = 0) 
         let pushDistance;
 
         if (pushDirection === 'right' || pushDirection === 'left') {
-          const overlapX = (newRect.x + newRect.width) - tabRect.x;
+          const overlapX = Math.min(newRect.x + newRect.width, tabRect.x + tabRect.width) -
+                           Math.max(newRect.x, tabRect.x);
           pushDistance = Math.max(overlapX + 20, 50);
         } else {
-          const overlapY = (newRect.y + newRect.height) - tabRect.y;
+          const overlapY = Math.min(newRect.y + newRect.height, tabRect.y + tabRect.height) -
+                           Math.max(newRect.y, tabRect.y);
           pushDistance = Math.max(overlapY + 20, 50);
         }
 

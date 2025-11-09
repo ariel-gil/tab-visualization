@@ -22,6 +22,7 @@ async function makeTabChild(childId, parentId) {
   }
 
   // Check for circular relationships (parent becoming child of its descendant)
+  // FIXED: Check if parent is a descendant of child (would create circle)
   const descendants = new Set();
   const collectDescendants = (tabId) => {
     if (!tabsData[tabId]) return;
@@ -32,9 +33,9 @@ async function makeTabChild(childId, parentId) {
       }
     });
   };
-  collectDescendants(parentId);
+  collectDescendants(childId); // Start from child, not parent
 
-  if (descendants.has(childId)) {
+  if (descendants.has(parentId)) { // Check if parent is in child's descendants
     alert('Cannot create circular parent-child relationships!');
     return false;
   }
@@ -76,20 +77,21 @@ async function makeTabsChildren(parentId) {
   }
 
   // Check for circular relationships (parent becoming child of its descendant)
-  const descendants = new Set();
-  const collectDescendants = (tabId) => {
-    if (!tabsData[tabId]) return;
-    Object.values(tabsData).forEach(tab => {
-      if (tab.parentId === tabId) {
-        descendants.add(tab.id);
-        collectDescendants(tab.id);
-      }
-    });
-  };
-  collectDescendants(parentId);
-
+  // For each selected tab, check if parent would be its descendant
   for (const selectedId of selectedTabs) {
-    if (descendants.has(selectedId)) {
+    const descendants = new Set();
+    const collectDescendants = (tabId) => {
+      if (!tabsData[tabId]) return;
+      Object.values(tabsData).forEach(tab => {
+        if (tab.parentId === tabId) {
+          descendants.add(tab.id);
+          collectDescendants(tab.id);
+        }
+      });
+    };
+    collectDescendants(selectedId); // Start from child (selected tab)
+
+    if (descendants.has(parentId)) { // Check if parent is in child's descendants
       alert('Cannot create circular parent-child relationships!');
       return;
     }
